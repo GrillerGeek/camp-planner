@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-005"
+  intention: "INT-002"
+  description: "When a user creates a packing list for a trip, the system auto-populates it from matching templates based on the trip's season (derived from dates) and trip type (e.g., car camping, backpacking, winter camping)."
+  validation_criteria: "Given a trip with dates in December and type 'winter camping', the generated packing list includes winter-specific items (e.g., insulated sleeping pad, hand warmers) that would not appear for a summer trip. The user can review, modify, and confirm the auto-populated list before finalizing. Items from multiple applicable templates are merged without duplicates."
+  edge_cases:
+    - "Trip spans two seasons (e.g., late September to early October crossing from summer to fall) — system must choose the more conservative/inclusive set or let the user pick."
+    - "No templates match the trip's season and type combination — system must fall back to a generic default list or prompt the user to select a template manually rather than producing an empty list."
+    - "User has not created any templates — system must handle gracefully, either offering built-in defaults or clearly indicating that templates need to be created first."
+    - "Trip type is not set — system must prompt the user or use a reasonable default rather than failing silently."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"

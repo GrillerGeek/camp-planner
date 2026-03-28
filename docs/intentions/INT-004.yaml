@@ -1,0 +1,17 @@
+intention:
+  id: "INT-004"
+  product: "PROD-001"
+  statement: >
+    Users can generate grocery shopping lists from their meal plans,
+    accounting for what's already in the camper inventory, and track
+    purchasing progress.
+  rationale: >
+    Grocery shopping is a direct downstream activity from meal planning.
+    Auto-generating a list from planned meals — minus what's already on
+    hand — prevents duplicate purchases and missed ingredients.
+  priority: "high"
+  dependencies:
+    - "INT-003"
+    - "INT-005"
+  owner: "Jason Robey"
+  status: "draft"

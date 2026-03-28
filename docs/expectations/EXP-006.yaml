@@ -1,0 +1,12 @@
+expectation:
+  id: "EXP-006"
+  intention: "INT-002"
+  description: "Users can check off packed items on a trip's packing list, with check/uncheck state syncing in real time across all planners viewing the same trip."
+  validation_criteria: "When Planner A checks off an item, Planner B sees it as checked within 3 seconds without refreshing. The packing progress count updates immediately on both clients. Checked state persists across sessions (closing and reopening the app). Unchecking a previously checked item also syncs in real time."
+  edge_cases:
+    - "Two planners check off the same item at the same instant — both should see it as checked with no conflict or toggle-back behavior."
+    - "A planner checks off items while offline — changes must queue and sync when connectivity is restored without overwriting other planners' changes made during the offline period."
+    - "The packing list is modified (item added or removed) while another planner is actively checking items — the checking planner's view must update to reflect the structural change without losing their in-progress check states."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"

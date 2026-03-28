@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-018"
+  intention: "INT-005"
+  description: "Inventory can be updated post-trip to reflect consumed and added items. After returning from a trip, users can reconcile the inventory to match what is actually in the camper, accounting for items used during the trip and any new items brought back."
+  validation_criteria: "Given a completed trip, when the user opens the inventory and adjusts quantities (reducing consumed items, adding new items, removing fully consumed items), then the inventory reflects the updated state and those changes persist for future trips."
+  edge_cases:
+    - "User reduces an item quantity to zero -- system should prompt for removal or automatically remove the item rather than leaving a zero-quantity entry."
+    - "User never performs a post-trip reconciliation -- inventory should remain in its pre-trip state without data corruption; reconciliation is optional, not required."
+    - "Trip overlaps with another trip (e.g., back-to-back trips) -- inventory updates from one trip's reconciliation must not conflict with a concurrent trip's grocery list or planning."
+    - "User accidentally over-reduces a quantity (e.g., sets to negative) -- system should prevent negative quantities with input validation."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"

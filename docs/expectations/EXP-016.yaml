@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-016"
+  intention: "INT-005"
+  description: "Inventory persists between trips and is not tied to a single trip. The camper inventory represents the physical state of the camper at all times, independent of any specific trip's lifecycle."
+  validation_criteria: "Given inventory items added during or after Trip A, when the user creates Trip B and views the camper inventory, then all items from the previous state are still present and accurate. Deleting or archiving a trip does not remove or alter inventory data."
+  edge_cases:
+    - "A trip is deleted while its grocery list references inventory items -- inventory must remain intact and unaffected by trip deletion."
+    - "User has no active trips -- inventory should still be fully accessible and editable outside the context of any trip."
+    - "Multiple campers/vehicles exist (future feature) -- inventory must be scoped to a specific camper entity, not globally shared, to avoid cross-contamination of data."
+    - "System data migration or schema change occurs -- inventory records must be preserved through migrations without data loss."
+  complexity: "low"
+  owner: "Jason Robey"
+  status: "draft"

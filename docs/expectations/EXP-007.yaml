@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-007"
+  intention: "INT-002"
+  description: "Packing list items can be assigned to specific trip participants, indicating who is responsible for bringing each item."
+  validation_criteria: "Each item can be assigned to one or more participants. The assignment is visible to all planners. Filtering the packing list by participant shows only their assigned items. Unassigned items are clearly distinguishable from assigned ones. Assignment changes sync in real time."
+  edge_cases:
+    - "A participant is removed from the trip after items have been assigned to them — system must either reassign their items to 'unassigned' or prompt the remaining planners to redistribute."
+    - "All items are assigned to a single participant and none to others — system should allow this but may optionally warn about unbalanced load."
+    - "An item is assigned to a participant who has not yet accepted the trip invitation — system must handle this state (pending participant) without errors."
+    - "A participant's name is changed or their account is merged — assignments must follow the identity, not a stale name string."
+  complexity: "low"
+  owner: "Jason Robey"
+  status: "draft"

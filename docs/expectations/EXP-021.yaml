@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-021"
+  intention: "INT-006"
+  description: "Task completion is visible in real time to all planners. When any participant marks a task as complete, all other planners viewing the task list see the updated status without needing to manually refresh."
+  validation_criteria: "Given two planners viewing the same trip's task list simultaneously, when Planner A marks a task as complete, then Planner B sees the task status change to complete within 5 seconds without manually refreshing the page."
+  edge_cases:
+    - "Planner loses network connectivity and marks a task complete offline -- the completion should sync when connectivity is restored, and conflicts with other changes made in the interim should be resolved gracefully."
+    - "Two planners mark the same task complete at nearly the same time -- system should handle the duplicate completion idempotently without errors or inconsistent state."
+    - "A completed task is later marked incomplete (undone) -- the reversion should also propagate in real time to all planners."
+    - "Large number of tasks (50+) are updated in rapid succession -- real-time updates should not degrade UI performance or cause excessive network traffic."
+  complexity: "high"
+  owner: "Jason Robey"
+  status: "draft"

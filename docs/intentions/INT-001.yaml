@@ -1,0 +1,15 @@
+intention:
+  id: "INT-001"
+  product: "PROD-001"
+  statement: >
+    Users can create, view, and manage camping trips with key details
+    including destination, dates, campsite info, and participants — serving
+    as the central hub from which all other planning activities are organized.
+  rationale: >
+    Every other feature (packing, meals, tasks, reservations) hangs off a
+    trip. Without a trip as the organizing entity, there's no context for
+    the rest of the app. This is the foundational structure.
+  priority: "critical"
+  dependencies: []
+  owner: "Jason Robey"
+  status: "draft"

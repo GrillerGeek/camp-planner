@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-019"
+  intention: "INT-006"
+  description: "Users can create tasks with title, description, assignee, and due date. Each task captures the essential information needed to track a pre-trip preparation activity."
+  validation_criteria: "Given an authenticated user on a trip's task management view, when they create a task with a title, optional description, optional assignee, and optional due date, then the task is saved and appears in the task list with all provided fields displayed correctly."
+  edge_cases:
+    - "User creates a task with only a title (all optional fields blank) -- task should be created successfully with empty/unset optional fields."
+    - "User sets a due date in the past -- system should allow it (task may already be overdue) but visually indicate it is past due."
+    - "Task title is extremely long (e.g., 500+ characters) -- system should enforce a reasonable character limit and provide a validation message."
+    - "User creates many tasks rapidly in succession -- each task must be saved reliably without any being dropped or duplicated."
+  complexity: "low"
+  owner: "Jason Robey"
+  status: "draft"

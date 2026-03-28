@@ -1,0 +1,209 @@
+spec:
+  id: "SPEC-007"
+  name: "Task & Prep Management"
+  product: "PROD-001"
+  status: "draft"
+  owner: "Jason Robey"
+  created: "2026-03-27"
+
+  context:
+    description: >
+      Implements collaborative task tracking for pre-trip preparation activities.
+      Planners create, assign, and complete tasks tied to a trip, with real-time
+      sync so both planners always see the current state. Reusable task templates
+      allow quick population of common checklists across trips.
+    product: "PROD-001"
+    intentions:
+      - id: "INT-006"
+        statement: >
+          Users can create, assign, and track pre-trip preparation tasks across
+          the planning team, with clear ownership and completion status visible
+          to all planners in real time.
+    dependencies:
+      - spec: "SPEC-001"
+        reason: "Google OAuth authentication and planner/viewer role enforcement via Supabase Auth"
+      - spec: "SPEC-002"
+        reason: "Trip CRUD and trip_participants table for assignee resolution"
+      - spec: "SPEC-003"
+        reason: "Supabase Realtime subscription infrastructure for live task status sync"
+    stack:
+      runtime: "Next.js 14+ (App Router), TypeScript"
+      styling: "Tailwind CSS (utility classes, no CSS modules)"
+      database: "Supabase PostgreSQL with Row Level Security"
+      auth: "Google OAuth via Supabase Auth (planner / viewer roles)"
+      realtime: "Supabase Realtime (Postgres Changes)"
+      hosting: "Vercel"
+      patterns:
+        - "PWA (Progressive Web App)"
+        - "Server components with client islands"
+        - "Supabase client via @supabase/ssr for server/client components"
+        - "Mobile-first responsive design"
+        - "App Router file-based routing (app/ directory)"
+
+  expectations:
+    - id: "EXP-019"
+      intention: "INT-006"
+      description: >
+        Users can create tasks with title, description, assignee, and due date.
+        Each task captures the essential information needed to track a pre-trip
+        preparation activity.
+      validation_criteria: >
+        Given an authenticated user on a trip's task management view, when they
+        create a task with a title, optional description, optional assignee, and
+        optional due date, then the task is saved and appears in the task list
+        with all provided fields displayed correctly.
+      edge_cases:
+        - "User creates a task with only a title (all optional fields blank) -- task should be created successfully with empty/unset optional fields."
+        - "User sets a due date in the past -- system should allow it (task may already be overdue) but visually indicate it is past due."
+        - "Task title is extremely long (e.g., 500+ characters) -- system should enforce a reasonable character limit and provide a validation message."
+        - "User creates many tasks rapidly in succession -- each task must be saved reliably without any being dropped or duplicated."
+
+    - id: "EXP-020"
+      intention: "INT-006"
+      description: >
+        Tasks can be assigned to any trip participant, whether they are a planner
+        with full access or a guest with limited access. Assignment makes task
+        ownership clear and enables accountability.
+      validation_criteria: >
+        Given a trip with multiple participants (planners and guests), when a user
+        assigns a task to any participant, then that participant's name appears on
+        the task and the participant can view their assigned tasks. Reassignment
+        to a different participant updates the display accordingly.
+      edge_cases:
+        - "Assigned participant is removed from the trip -- task should either become unassigned or flag the orphaned assignment for the planner to reassign."
+        - "Task is assigned to a guest who has not yet accepted the trip invitation -- assignment should be allowed, but the guest sees the task only after accepting."
+        - "A participant is assigned more tasks than is practical -- system should not prevent it, but could surface a count of assigned tasks per person for load balancing."
+        - "User attempts to assign a task to someone not on the trip participant list -- system should reject the assignment and only offer valid participants."
+
+    - id: "EXP-021"
+      intention: "INT-006"
+      description: >
+        Task completion is visible in real time to all planners. When any
+        participant marks a task as complete, all other planners viewing the task
+        list see the updated status without needing to manually refresh.
+      validation_criteria: >
+        Given two planners viewing the same trip's task list simultaneously, when
+        Planner A marks a task as complete, then Planner B sees the task status
+        change to complete within 5 seconds without manually refreshing the page.
+      edge_cases:
+        - "Planner loses network connectivity and marks a task complete offline -- the completion should sync when connectivity is restored, and conflicts with other changes made in the interim should be resolved gracefully."
+        - "Two planners mark the same task complete at nearly the same time -- system should handle the duplicate completion idempotently without errors or inconsistent state."
+        - "A completed task is later marked incomplete (undone) -- the reversion should also propagate in real time to all planners."
+        - "Large number of tasks (50+) are updated in rapid succession -- real-time updates should not degrade UI performance or cause excessive network traffic."
+
+    - id: "EXP-022"
+      intention: "INT-006"
+      description: >
+        Reusable task templates for common prep activities allow users to quickly
+        populate a trip's task list from predefined checklists (e.g., 'pre-trip
+        checklist', 'campsite setup', 'departure cleanup').
+      validation_criteria: >
+        Given at least one saved task template, when a user applies that template
+        to a trip, then all tasks defined in the template are created in the
+        trip's task list with their predefined titles, descriptions, and relative
+        due dates. The original template remains unchanged and available for
+        future use.
+      edge_cases:
+        - "Template is applied to a trip that already has tasks -- new tasks from the template should be added alongside existing tasks, not replace them."
+        - "Template is deleted while a trip is using tasks that were created from it -- the already-created tasks should remain unaffected since they are independent copies."
+        - "Template contains a task assigned to a role (e.g., 'driver') that does not map to any current trip participant -- the task should be created as unassigned with a note or prompt to assign it."
+        - "User modifies tasks after applying a template, then applies the same template again -- system should either warn about duplicates or create new copies, not silently overwrite the modified tasks."
+
+  boundaries:
+    in_scope:
+      - "Supabase tables: trip_tasks, task_templates, task_template_items"
+      - "Task creation UI with fields: title, description, assignee dropdown (populated from trip participants), due date, priority"
+      - "Task list view per trip with filter and sort by assignee, status, and due date"
+      - "Real-time task completion sync using SPEC-003 Supabase Realtime infrastructure"
+      - "Task template management: create reusable checklists, apply a template to a trip"
+      - "Row Level Security policies for all new tables"
+    out_of_scope:
+      - "Do not modify packing lists, meal plans, or grocery features"
+      - "Do not implement notifications or reminders (push, email, or in-app)"
+      - "Do not implement task dependencies or subtasks -- task structure is flat"
+      - "Do not implement recurring tasks or scheduled automation"
+      - "Do not modify existing SPEC-001, SPEC-002, or SPEC-003 deliverables"
+
+  deliverables:
+    database:
+      - name: "trip_tasks"
+        type: "supabase_table"
+        description: >
+          Stores individual tasks linked to a trip. Columns include: id (uuid, PK),
+          trip_id (FK to trips), title (text, required, max 300 chars), description
+          (text, optional), assigned_to (FK to trip_participants or auth.users, nullable),
+          due_date (date, nullable), priority (enum: low/medium/high, default medium),
+          status (enum: pending/complete, default pending), completed_at (timestamptz,
+          nullable), completed_by (uuid, nullable), template_source_id (uuid, nullable,
+          references task_templates for provenance), created_by (uuid), created_at
+          (timestamptz), updated_at (timestamptz).
+      - name: "task_templates"
+        type: "supabase_table"
+        description: >
+          Stores reusable task template headers. Columns include: id (uuid, PK),
+          name (text, required), description (text, optional), created_by (uuid),
+          created_at (timestamptz), updated_at (timestamptz).
+      - name: "task_template_items"
+        type: "supabase_table"
+        description: >
+          Stores individual items within a task template. Columns include: id (uuid, PK),
+          template_id (FK to task_templates), title (text, required), description
+          (text, optional), relative_due_days (integer, nullable -- days before trip
+          start), priority (enum: low/medium/high, default medium), sort_order (integer).
+
+    ui:
+      - name: "Task creation form"
+        description: >
+          Modal or inline form for creating a new task. Fields: title (required,
+          text input with 300-char limit), description (optional, textarea),
+          assignee (dropdown populated from trip participants via SPEC-002),
+          due date (date picker), priority (select: low/medium/high). Validates
+          required fields client-side before submission.
+      - name: "Task list view"
+        description: >
+          Displays all tasks for a trip in a list or card layout. Each task shows
+          title, assignee name/avatar, due date, priority badge, and completion
+          checkbox. Supports filtering by assignee, status (pending/complete), and
+          sorting by due date, priority, or creation date. Overdue tasks are
+          visually distinguished.
+      - name: "Task template management"
+        description: >
+          Interface for creating, editing, and deleting task templates. Users can
+          add/remove/reorder template items. An "Apply Template" action on the
+          trip task view lets users select a template and bulk-create tasks from it.
+
+    realtime:
+      - name: "Task status subscription"
+        description: >
+          Supabase Realtime subscription on the trip_tasks table filtered by
+          trip_id. Listens for UPDATE events on the status and completed_at columns.
+          When a task is marked complete or incomplete by any user, all connected
+          clients receive the update and re-render the affected task row within
+          5 seconds.
+
+    security:
+      - name: "trip_tasks RLS policies"
+        description: >
+          SELECT: Authenticated users who are participants of the trip (planner or viewer role).
+          INSERT/UPDATE/DELETE: Only users with planner role on the trip.
+          Task completion (status update): Allowed for planners on the trip.
+      - name: "task_templates RLS policies"
+        description: >
+          SELECT: Authenticated users can read templates they created.
+          INSERT/UPDATE/DELETE: Only the template creator.
+      - name: "task_template_items RLS policies"
+        description: >
+          SELECT: Authenticated users can read items belonging to templates they can access.
+          INSERT/UPDATE/DELETE: Only the parent template creator.
+
+  validation:
+    - expectation: "EXP-019"
+      criteria: "Create a task with only a title; verify it appears in the list. Create a task with all fields populated; verify all fields persist and display. Attempt a title over 300 characters; verify validation error."
+    - expectation: "EXP-020"
+      criteria: "Assign a task to each participant type (planner, viewer). Verify assignee displays correctly. Reassign to a different participant; verify update. Confirm dropdown only shows current trip participants."
+    - expectation: "EXP-021"
+      criteria: "Open the task list in two browser sessions as different planners. Mark a task complete in session A; verify session B shows the update within 5 seconds without refresh. Undo completion; verify propagation."
+    - expectation: "EXP-022"
+      criteria: "Create a template with 3+ items. Apply it to a trip; verify all items appear as tasks. Apply again; verify duplicate warning or new copies created. Delete the template; verify existing tasks remain."
+    - criteria: "Verify RLS by attempting task CRUD as an unauthenticated user, a user not on the trip, a viewer-role user (should read but not write), and a planner-role user (full CRUD)."
+    - criteria: "Load test with 50+ tasks; verify real-time updates do not degrade UI responsiveness or cause excessive re-renders."

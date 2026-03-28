@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-024"
+  intention: "INT-007"
+  description: "Multiple reservations per trip are supported to accommodate multi-stop trips or booking multiple adjacent sites."
+  validation_criteria: "A user can add two or more reservation records to a single trip, each with independent campground names, dates, and details. All reservations are listed under the trip, individually editable, individually deletable, and display in chronological order by check-in date."
+  edge_cases:
+    - "Two reservations on the same trip have overlapping date ranges (e.g., two sites at the same campground for the same weekend); the system allows this without error since booking multiple sites simultaneously is a valid use case."
+    - "A user adds 20+ reservations to a single trip; the UI remains performant, scrollable, and all reservations are accessible without data loss."
+    - "A user deletes a reservation from the middle of a multi-reservation trip; remaining reservations retain their data and ordering without corruption."
+    - "Two users with edit access add reservations to the same trip concurrently; both reservations are saved without one overwriting the other."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"

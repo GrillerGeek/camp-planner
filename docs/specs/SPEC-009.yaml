@@ -1,0 +1,200 @@
+spec:
+  id: "SPEC-009"
+  name: "Guest Sharing"
+  product: "PROD-001"
+  status: "draft"
+  owner: "Jason Robey"
+  created: "2026-03-27"
+
+  context:
+    description: >
+      Implements token-based guest sharing so planners can generate a view-only
+      link for any trip. Guests open the link without authentication and see a
+      read-only summary of the trip: itinerary, their assigned packing items,
+      their assigned tasks, meal plan, and reservation overview. Planners can
+      revoke links at any time with immediate effect.
+    product: "PROD-001"
+    intentions:
+      - id: "INT-009"
+        statement: >
+          Users can share a trip plan with friends and guests via a view-only
+          link, allowing them to see the itinerary, their assigned items, meal
+          plans, and key details without needing full app access.
+    dependencies:
+      - spec: "SPEC-001"
+        reason: "Google OAuth authentication and RLS infrastructure for planner identity verification"
+      - spec: "SPEC-002"
+        reason: "Trip data model, trip participants, and itinerary data"
+      - spec: "SPEC-004"
+        reason: "Packing list items with assignee data for guest-filtered display"
+      - spec: "SPEC-007"
+        reason: "Task items with assignee data for guest-filtered display"
+    stack:
+      runtime: "Next.js 14+ (App Router), TypeScript"
+      styling: "Tailwind CSS (utility classes, no CSS modules)"
+      database: "Supabase PostgreSQL with Row Level Security"
+      auth: "Google OAuth via Supabase Auth for planners; token-based access for guests (no auth required)"
+      hosting: "Vercel"
+      patterns:
+        - "PWA (Progressive Web App)"
+        - "Server components with client islands"
+        - "Supabase client via @supabase/ssr for server/client components"
+        - "Mobile-first responsive design"
+        - "App Router file-based routing (app/ directory)"
+
+  expectations:
+    - id: "EXP-029"
+      intention: "INT-009"
+      description: >
+        Planners can generate a shareable link that grants view-only access to a
+        trip, allowing guests to see trip details without needing an account.
+      validation_criteria: >
+        A planner clicks a 'Share' action on a trip, and the system generates a
+        unique URL. Opening that URL in an incognito browser (no login) displays
+        the trip in a read-only view. The link contains an unguessable token
+        (minimum 128 bits of entropy).
+      edge_cases:
+        - "Planner generates a share link, then generates another for the same trip; the system either reuses the existing link or creates a new one -- either way, both behaviors are intentional and previously issued links remain valid unless explicitly revoked."
+        - "A guest accesses the share link after the trip's end date has passed; the link still works and shows the trip data (including completed status and any journal entries) rather than returning a 'trip expired' error."
+        - "Share link is accessed by a bot or web crawler; the system does not expose sensitive data in meta tags or previews beyond the trip name, and rate-limits repeated access from the same IP."
+        - "Planner attempts to generate a share link while offline; the system informs them that link generation requires connectivity rather than creating an invalid or non-functional link."
+
+    - id: "EXP-030"
+      intention: "INT-009"
+      description: >
+        Guests accessing a shared link see the itinerary, their assigned packing
+        items, their assigned tasks, and the meal plan in a read-only view with
+        no editing capabilities.
+      validation_criteria: >
+        A guest opening a share link sees the full trip itinerary, meal plan, and
+        any packing items or tasks specifically assigned to them. No edit, delete,
+        or add buttons/actions are visible or functional. Attempting to call
+        mutation APIs directly with the share token returns a 403 Forbidden
+        response.
+      edge_cases:
+        - "Guest is not assigned any packing items or tasks; the view shows the itinerary and meal plan but displays a clear message (e.g., 'No items assigned to you yet') in the packing and tasks sections rather than hiding those sections entirely."
+        - "Planner updates the trip after the share link was generated; the guest sees the latest version on their next page load, not a stale snapshot from when the link was created."
+        - "Guest attempts to modify data by crafting direct API requests using the share token; all write endpoints reject the request with an appropriate error and the attempt is logged."
+        - "Multiple guests access the same share link simultaneously; each sees only their own assigned items and tasks, not those assigned to other guests, while the shared itinerary and meal plan are identical for all."
+
+    - id: "EXP-031"
+      intention: "INT-009"
+      description: >
+        Shareable links can be revoked by any planner on the trip at any time,
+        immediately cutting off guest access.
+      validation_criteria: >
+        A planner revokes a share link, and within 60 seconds any guest
+        attempting to access that URL receives a 'This link is no longer valid'
+        message instead of trip data. Previously loaded pages do not allow
+        further data fetching after revocation.
+      edge_cases:
+        - "Guest has the shared trip page open in their browser at the moment the link is revoked; subsequent API calls (e.g., polling for updates or navigating to a sub-view) fail gracefully with a clear 'access revoked' message rather than a generic error."
+        - "Planner revokes the link and then immediately generates a new share link for the same trip; the old link remains invalid while the new link works, and no data leaks through the old token."
+        - "Trip has multiple planners and one revokes the share link without informing the others; all planners can see that the link has been revoked and can generate a new one if desired."
+        - "Planner attempts to revoke a link that was already revoked (e.g., double-clicking the revoke button); the system handles idempotently without error."
+
+  boundaries:
+    in_scope:
+      - "Supabase table: trip_share_links (trip_id, token, created_by, created_at, revoked_at)"
+      - "'Share Trip' UI for planners: generate link, view active links, revoke links"
+      - "Guest view page accessible via token with no authentication required"
+      - "Guest view content: trip summary, itinerary, assigned packing items filtered to guest, assigned tasks filtered to guest, meal plan, reservation overview"
+      - "RLS policies that allow token-based read access to relevant trip data"
+      - "Link revocation with immediate effect (revoked links return 404/expired page)"
+      - "Token generation with minimum 128 bits of entropy (cryptographically secure)"
+    out_of_scope:
+      - "Do not allow guests to edit anything -- strictly read-only access"
+      - "Do not require Google auth for guest access -- token-based only"
+      - "Do not implement guest notifications or messaging"
+      - "Do not modify planner-facing UI beyond adding the share button and link management"
+      - "Do not implement guest accounts, guest registration, or guest login"
+      - "Do not implement link expiration by time -- links are valid until explicitly revoked"
+      - "Do not implement per-guest personalized links -- one link per trip, guest identity resolved by assignee filtering on the guest view"
+
+  deliverables:
+    database:
+      - name: "trip_share_links"
+        type: "supabase_table"
+        description: >
+          Stores share link tokens for trips. Columns include: id (uuid, PK),
+          trip_id (FK to trips), token (text, unique, not null -- cryptographically
+          random, minimum 128 bits of entropy, URL-safe encoding), created_by
+          (uuid, FK to auth.users), created_at (timestamptz, default now()),
+          revoked_at (timestamptz, nullable -- null means active, non-null means
+          revoked). Index on token for fast lookup. A trip may have multiple
+          share link records (active and revoked).
+
+    ui:
+      - name: "Share Trip UI (planner)"
+        description: >
+          Button or menu item on the trip detail page labeled 'Share Trip' or
+          similar. Opens a panel/modal showing: (1) a 'Generate Link' button that
+          creates a new share token and displays the full URL with a copy-to-clipboard
+          action; (2) a list of active (non-revoked) share links for this trip with
+          creation date and a 'Revoke' button on each; (3) revoked links shown as
+          inactive/grayed for reference. Offline state: generate button disabled
+          with tooltip explaining connectivity requirement.
+      - name: "Guest view page"
+        description: >
+          A public route (e.g., /share/[token]) that loads trip data using the
+          token for authorization. No login prompt or auth gate. Page layout
+          includes: trip name and dates header, itinerary/schedule section, meal
+          plan section, packing items section (filtered to items assigned to the
+          guest viewing -- since the link is shared, show all guest-assigned items
+          grouped by assignee or show a prompt for the guest to identify themselves),
+          tasks section (filtered similarly), reservation overview (campground names,
+          dates, site numbers -- no cost or sensitive contact info). All sections
+          are read-only with no edit controls rendered. If the token is invalid or
+          revoked, display a clear 'This link is no longer valid' message page.
+          Minimal meta tags for link previews (trip name only, no sensitive details).
+
+    api:
+      - name: "Share link generation endpoint"
+        description: >
+          Server action or API route that creates a new trip_share_links record.
+          Generates a cryptographically secure token (e.g., crypto.randomUUID() or
+          crypto.getRandomValues() with base64url encoding). Requires authenticated
+          planner on the trip. Returns the full shareable URL.
+      - name: "Share link revocation endpoint"
+        description: >
+          Server action or API route that sets revoked_at to the current timestamp
+          on a trip_share_links record. Requires authenticated planner on the trip.
+          Idempotent -- revoking an already-revoked link succeeds without error.
+      - name: "Guest data fetch endpoint"
+        description: >
+          Server-side data loader for the guest view page. Accepts the token as
+          input. Validates the token exists and is not revoked (revoked_at is null).
+          If invalid or revoked, returns a 404/expired response. If valid, fetches
+          trip summary, itinerary, meal plan, guest-assigned packing items,
+          guest-assigned tasks, and reservation overview. Uses a service-role or
+          bypasses RLS in a controlled manner since the guest is unauthenticated.
+          All write operations are rejected regardless of token validity.
+
+    security:
+      - name: "trip_share_links RLS policies"
+        description: >
+          SELECT: Authenticated users who are planners on the associated trip.
+          INSERT: Only planners on the trip.
+          UPDATE (revocation): Only planners on the trip.
+          DELETE: Not allowed (soft-delete via revoked_at only).
+          Note: Guest access does not go through RLS -- the guest data fetch
+          endpoint uses server-side queries with service role, validating the
+          token in application code.
+      - name: "Guest data access controls"
+        description: >
+          The guest data fetch endpoint enforces read-only access at the application
+          level. No mutation endpoints accept share tokens. Token validation checks
+          both existence and revocation status. Rate limiting on the guest view route
+          to prevent abuse. Reservation data exposed to guests is limited (no cost
+          or contact info). Share tokens are not logged in client-side analytics or
+          exposed in meta tags beyond the trip name.
+
+  validation:
+    - expectation: "EXP-029"
+      criteria: "As a planner, generate a share link; verify a URL with an unguessable token is produced. Open the URL in an incognito/private browser with no login; verify the trip displays in read-only mode. Generate a second link for the same trip; verify both work. Attempt link generation while offline; verify clear error message."
+    - expectation: "EXP-030"
+      criteria: "Access a share link as a guest; verify trip summary, itinerary, meal plan, guest-assigned packing items, and guest-assigned tasks are visible. Verify no edit/delete/add controls are rendered. Craft a direct POST/PUT/DELETE API request using the share token; verify 403 Forbidden response. Access with no assigned items; verify 'no items assigned' message rather than empty/hidden sections. Modify trip data as planner; reload guest view; verify latest data."
+    - expectation: "EXP-031"
+      criteria: "Revoke a share link as a planner; verify guest access returns 'link no longer valid' within 60 seconds. With guest page already open, verify subsequent API calls fail gracefully with 'access revoked' message. Revoke and generate a new link; verify old link stays invalid and new link works. Double-click revoke; verify idempotent behavior. Verify all planners can see revocation status."
+    - criteria: "Verify token entropy meets minimum 128 bits. Verify tokens are URL-safe. Verify no sensitive data (cost, contact info) is exposed in the guest view. Verify meta tags contain only the trip name."
+    - criteria: "Verify RLS on trip_share_links by attempting access as a non-planner authenticated user, a viewer-role user, and an unauthenticated user. Verify only planners can create and revoke links."

@@ -1,0 +1,222 @@
+spec:
+  id: "SPEC-005"
+  name: "Meal Planning & Recipe Library"
+  product: "PROD-001"
+  status: "draft"
+  owner: "Jason Robey"
+  created: "2026-03-27"
+
+  context:
+    intentions:
+      - "INT-003"
+    expectations:
+      - "EXP-008"
+      - "EXP-009"
+      - "EXP-010"
+      - "EXP-011"
+    dependencies:
+      - id: "SPEC-001"
+        reason: "Authentication and user identity required for recipe ownership, RLS policies, and AI suggestion personalization."
+      - id: "SPEC-002"
+        reason: "Trip CRUD provides the trip entity (dates, destination, participants) that meal plans attach to and that AI suggestions use for context."
+    stack:
+      runtime: "Next.js 14+ (App Router), TypeScript"
+      styling: "Tailwind CSS utility classes, mobile-first responsive design"
+      backend: "Supabase (PostgreSQL, Auth, Row Level Security)"
+      hosting: "Vercel"
+      ai: "Claude API (or similar LLM) for meal suggestions and local flavor recommendations, invoked via Next.js API routes or Supabase Edge Functions"
+      patterns:
+        - "PWA (Progressive Web App)"
+        - "Server components with client islands"
+        - "Supabase client via @supabase/ssr for server/client components"
+        - "App Router file-based routing (app/ directory)"
+        - "API routes for AI suggestion endpoints with graceful degradation"
+
+  expectations:
+    - id: "EXP-008"
+      summary: "Users can plan meals for each day of the trip across four meal slots: breakfast, lunch, dinner, and snacks."
+      validation_criteria: >
+        The meal planner displays one row per trip day with columns for each meal slot. Users can
+        add a meal (name, recipe link, notes, serving count) to any slot. Meals can be moved between
+        slots and days via drag-and-drop or edit. The total trip day count matches the trip date range
+        exactly. Empty slots are clearly visible to indicate incomplete planning.
+      edge_cases:
+        - "Trip dates changed after meals are planned -- added days appear as empty slots; removed days warn before deleting associated meals."
+        - "Single-day trip (start date equals end date) -- display exactly one day row, not zero or two."
+        - "User adds a meal with no name or only whitespace -- require a non-empty meal name."
+        - "Trip spans 30+ days -- interface remains usable with pagination, scrolling, or collapsible sections."
+
+    - id: "EXP-009"
+      summary: "The AI suggests meals based on the user's past trip favorites and frequently used recipes from their recipe library."
+      validation_criteria: >
+        When a user opens a meal slot and requests suggestions, the system returns a ranked list
+        of meal recommendations. Meals used on 3+ previous trips appear with higher priority.
+        Suggestions include the meal name, usage count, and an option to add directly to the slot.
+        If no trip history exists, the system falls back to popular or curated default suggestions.
+      edge_cases:
+        - "User has only one previous trip with one meal -- return that meal plus fallback recommendations."
+        - "Past meals include deleted recipes -- handle gracefully by skipping or showing as 'recipe unavailable'."
+        - "AI suggestion service is unavailable or times out -- show a clear fallback message and allow manual meal entry without blocking."
+        - "Two planners on the same trip have conflicting favorites -- surface suggestions from both users' histories."
+
+    - id: "EXP-010"
+      summary: "The AI suggests local food specialties and regional dishes based on the trip's destination to enhance the camping meal experience."
+      validation_criteria: >
+        Given a trip destination, the system returns at least 3 local specialty suggestions with
+        dish name, brief description, and relevance to camping (e.g., ease of outdoor preparation).
+        Suggestions are contextually appropriate to the region. Users can add any suggestion directly
+        to their meal plan.
+      edge_cases:
+        - "Remote or obscure location with no well-known local cuisine -- return reasonable regional suggestions or a 'no local specialties found' message with general alternatives."
+        - "Destination contains coordinates, a park name, or a misspelled location -- attempt to resolve or ask for clarification."
+        - "Trip has no destination set -- skip local suggestions gracefully or prompt the user to add a destination."
+        - "AI returns allergen-heavy suggestions -- do not hide ingredient details; future dietary filtering is out of scope but ingredients must be transparent."
+
+    - id: "EXP-011"
+      summary: "Users can save recipes to a personal recipe library for reuse across trips, including from AI suggestions, manual entry, or previous meal plans."
+      validation_criteria: >
+        A recipe can be saved with name, ingredients list (with quantities and units), instructions,
+        prep time, serving count, and optional tags (e.g., 'no-cook', 'campfire', 'one-pot'). Saved
+        recipes appear in the user's library and can be searched and filtered. Recipes can be edited
+        and deleted. A recipe saved from a meal plan retains all original details. Saved recipes are
+        available as options when planning future trips.
+      edge_cases:
+        - "Duplicate recipe name -- warn and offer to overwrite, rename, or cancel."
+        - "Delete a recipe assigned to an active trip's meal slot -- the meal slot retains meal info as a snapshot."
+        - "Recipe has no ingredients or instructions -- require at least a name and one of ingredients or instructions."
+        - "Recipe library grows large (500+ recipes) -- search and filtering remain performant with pagination or lazy loading."
+
+  boundaries:
+    in_scope:
+      - "Supabase tables: recipes, trip_meal_plans, trip_meals"
+      - "Meal planning UI: calendar-style grid showing days x meal slots (breakfast, lunch, dinner, snack) for a trip"
+      - "Recipe library CRUD: name, ingredients with quantities/units, instructions, tags, servings, prep time"
+      - "AI suggestion endpoint for meal recommendations based on past trip data and recipe favorites"
+      - "AI local flavor suggestion endpoint based on trip destination (prompt-based approach with Claude API or similar)"
+      - "meal_type enum: breakfast, lunch, dinner, snack"
+      - "Drag-and-drop or edit-based meal slot reassignment"
+      - "Recipe search and filtering within meal slot assignment"
+      - "RLS policies: planners get full CRUD on meal plans and recipes; viewers get read-only access to trip meal plans"
+    out_of_scope:
+      - "Do not implement grocery list generation from meal plan ingredients (that is SPEC-006)."
+      - "Do not modify packing lists (SPEC-004)."
+      - "Do not implement photo uploads for recipes or meals."
+      - "Do not implement dietary restriction or allergy filtering for AI suggestions (future enhancement)."
+      - "Do not implement community recipe sharing or public recipe library."
+      - "AI suggestions should gracefully degrade to an empty state if no history exists -- do not require history as a prerequisite."
+
+  deliverables:
+    database:
+      - name: "recipes"
+        description: >
+          Personal recipe library. Fields: id (uuid PK), user_id (uuid FK to auth.users),
+          name (text), ingredients (jsonb -- array of {name, quantity, unit}),
+          instructions (text, nullable), prep_time_minutes (integer, nullable),
+          servings (integer, default 1), tags (text[] -- e.g., ['campfire', 'no-cook', 'one-pot']),
+          is_favorite (boolean, default false), created_at (timestamptz), updated_at (timestamptz).
+          Unique constraint on (user_id, name) to prevent duplicate recipe names per user.
+      - name: "trip_meal_plans"
+        description: >
+          A meal plan instance for a specific trip. Fields: id (uuid PK),
+          trip_id (uuid FK to trips ON DELETE CASCADE), created_at (timestamptz),
+          updated_at (timestamptz). One meal plan per trip (unique on trip_id).
+      - name: "trip_meals"
+        description: >
+          Individual meals assigned to a day and slot within a trip's meal plan.
+          Fields: id (uuid PK), meal_plan_id (uuid FK to trip_meal_plans ON DELETE CASCADE),
+          day_number (integer -- 1-indexed day of the trip), meal_type (text, enum: 'breakfast', 'lunch', 'dinner', 'snack'),
+          name (text, not null), recipe_id (uuid FK to recipes, nullable -- null if manually entered or recipe was deleted),
+          notes (text, nullable), servings (integer, default 1),
+          recipe_snapshot (jsonb, nullable -- frozen copy of recipe details at time of assignment for resilience against recipe deletion),
+          sort_order (integer, default 0 -- for ordering multiple items within a slot like snacks),
+          created_at (timestamptz), updated_at (timestamptz).
+
+    rls_policies:
+      - table: "recipes"
+        policies:
+          - "SELECT, INSERT, UPDATE, DELETE: user_id = auth.uid()"
+      - table: "trip_meal_plans"
+        policies:
+          - "SELECT: user is a participant (planner or viewer) on the trip"
+          - "INSERT, UPDATE, DELETE: user is a planner on the trip"
+      - table: "trip_meals"
+        policies:
+          - "SELECT: user is a participant (planner or viewer) on the trip (via join to trip_meal_plans -> trips)"
+          - "INSERT, UPDATE, DELETE: user is a planner on the trip"
+
+    ui_components:
+      - name: "Meal Planner Page"
+        route: "/trips/[tripId]/meals"
+        description: >
+          Calendar-style grid with one row per trip day and four columns (breakfast, lunch, dinner, snack).
+          Each cell shows the assigned meal name or an empty state with an 'add meal' action. Supports
+          drag-and-drop to move meals between slots/days. Shows trip day count derived from trip date range.
+          For trips longer than 7 days, use scrollable view or collapsible day groups.
+      - name: "Add/Edit Meal Modal"
+        description: >
+          Modal or slide-over for assigning a meal to a slot. Options: search/select from recipe library,
+          enter manually (name + notes), or request AI suggestions. Shows serving count adjustment.
+          When selecting a recipe, auto-populates name and creates a recipe_snapshot.
+      - name: "AI Suggestions Panel"
+        description: >
+          Panel within the meal assignment flow. Two sections: (1) 'Based on your favorites' -- ranked
+          list from past trip history and recipe library favorites, showing usage count; (2) 'Local flavors'
+          -- destination-based suggestions with dish name, description, and camping relevance. Each
+          suggestion has an 'Add to slot' action. Shows loading state during API call and graceful
+          empty/error states.
+      - name: "Recipe Library Page"
+        route: "/recipes"
+        description: >
+          Lists all of the user's saved recipes with search by name and filter by tags. Each recipe card
+          shows name, tags, servings, and prep time. Actions: create new, edit, delete, toggle favorite.
+          Supports pagination or infinite scroll for large libraries.
+      - name: "Recipe Editor"
+        route: "/recipes/[id]/edit"
+        description: >
+          Form to create or edit a recipe. Fields: name (required), ingredients list (dynamic rows with
+          name, quantity, unit), instructions (rich text or plain text), prep time, servings, tags
+          (multi-select from predefined + custom). Validates at least name and one ingredient or instruction.
+
+    ai_endpoints:
+      - name: "Meal Suggestions API"
+        route: "/api/meals/suggest"
+        description: >
+          POST endpoint accepting trip_id (for context: dates, destination, participant count) and
+          optional meal_type filter. Queries past trip_meals for the user's history, queries recipes
+          with is_favorite=true. Constructs a prompt for the AI model requesting ranked meal suggestions
+          based on frequency of past use, favorites, and trip context (season, group size). Returns
+          a JSON array of suggestions with name, usage_count, source ('history' | 'favorite' | 'fallback'),
+          and optional recipe_id. Timeout: 10 seconds, fallback to empty suggestions array on failure.
+      - name: "Local Flavor Suggestions API"
+        route: "/api/meals/local-flavors"
+        description: >
+          POST endpoint accepting destination (string) and optional trip context (season, group size).
+          Constructs a prompt asking the AI model for 3-5 local food specialties appropriate for camping
+          at the given destination, including dish name, description, key ingredients, and camping
+          suitability notes. Returns a JSON array. Timeout: 10 seconds, fallback to empty array
+          with a 'no suggestions available' message on failure.
+
+  validation:
+    manual_tests:
+      - "Create a recipe with name, 3 ingredients, instructions, and tags. Verify it saves, appears in library, and can be edited and deleted."
+      - "Create a 3-day trip. Open the meal planner and verify 3 rows with 4 slots each are displayed."
+      - "Add meals to multiple slots using recipe library selection and manual entry. Verify all persist."
+      - "Move a meal from Day 1 dinner to Day 2 lunch via drag-and-drop or edit. Verify it moves correctly."
+      - "Request AI suggestions for a meal slot. Verify suggestions load (or graceful empty state if no history)."
+      - "Set a trip destination and request local flavor suggestions. Verify contextually relevant results."
+      - "Delete a recipe that is assigned to an active trip's meal slot. Verify the meal slot retains its information via snapshot."
+      - "Change trip dates after meals are planned. Verify new days appear empty and removed days warn before deletion."
+      - "Test AI suggestion endpoint timeout by simulating slow response. Verify graceful fallback."
+    automated_tests:
+      - "Unit tests for day count derivation from trip date range (including single-day trips and long trips)."
+      - "Unit tests for RLS policies: planners can CRUD meal plans and recipes; viewers can only read trip meal plans; non-participants are blocked."
+      - "Integration test: create recipe -> create trip -> add meal from recipe -> delete recipe -> verify meal snapshot intact."
+      - "API route tests: verify suggestion endpoints return valid JSON, respect timeouts, and degrade gracefully."
+    acceptance_criteria:
+      - "All four expectations (EXP-008 through EXP-011) pass their validation criteria."
+      - "Meal planner grid accurately reflects trip date range and allows full CRUD on meal slots."
+      - "AI suggestions return results when history exists and degrade gracefully when it does not."
+      - "Local flavor suggestions are contextually relevant to the destination."
+      - "Recipe library supports full CRUD with search, filtering, and pagination."
+      - "RLS policies enforce planner/viewer access correctly."
+      - "Mobile-first responsive design: meal planner grid is usable on phone screens (stacked layout for narrow viewports)."

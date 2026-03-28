@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-011"
+  intention: "INT-003"
+  description: "Users can save recipes to a personal recipe library for reuse across trips, including recipes from AI suggestions, manual entry, or previous trip meal plans."
+  validation_criteria: "A recipe can be saved with name, ingredients list, instructions, prep time, serving count, and optional tags (e.g., 'no-cook', 'campfire', 'one-pot'). Saved recipes appear in the user's library and can be searched and filtered. Recipes can be edited and deleted. A recipe saved from a meal plan retains all its original details. Saved recipes are available as options when planning meals on future trips."
+  edge_cases:
+    - "User saves a recipe with the same name as an existing recipe in their library — system must warn about the duplicate and offer to overwrite, rename, or cancel rather than silently creating a duplicate."
+    - "User deletes a recipe that is currently assigned to a meal slot on an active trip — the meal slot must retain the meal information (as a snapshot) rather than showing a broken reference."
+    - "Recipe has no ingredients or no instructions — system must require at least a name and one of ingredients or instructions to avoid saving empty placeholder recipes."
+    - "User's recipe library grows very large (500+ recipes) — search and filtering must remain performant and the library view must support pagination or lazy loading."
+  complexity: "low"
+  owner: "Jason Robey"
+  status: "draft"

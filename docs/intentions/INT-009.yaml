@@ -1,0 +1,19 @@
+intention:
+  id: "INT-009"
+  product: "PROD-001"
+  statement: >
+    Users can share a trip plan with friends and guests via a view-only
+    link, allowing them to see the itinerary, their assigned items, meal
+    plans, and key details without needing full app access.
+  rationale: >
+    Friends join trips occasionally but don't need planning access. A
+    simple shareable view lets them see what's happening, what to bring,
+    and what's assigned to them — without cluttering the planning
+    experience for the core team.
+  priority: "medium"
+  dependencies:
+    - "INT-001"
+    - "INT-002"
+    - "INT-006"
+  owner: "Jason Robey"
+  status: "draft"

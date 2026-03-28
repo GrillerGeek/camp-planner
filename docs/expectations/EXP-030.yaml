@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-030"
+  intention: "INT-009"
+  description: "Guests accessing a shared link see the itinerary, their assigned packing items, their assigned tasks, and the meal plan in a read-only view with no editing capabilities."
+  validation_criteria: "A guest opening a share link sees the full trip itinerary, meal plan, and any packing items or tasks specifically assigned to them. No edit, delete, or add buttons/actions are visible or functional. Attempting to call mutation APIs directly with the share token returns a 403 Forbidden response."
+  edge_cases:
+    - "Guest is not assigned any packing items or tasks; the view shows the itinerary and meal plan but displays a clear message (e.g., 'No items assigned to you yet') in the packing and tasks sections rather than hiding those sections entirely."
+    - "Planner updates the trip after the share link was generated; the guest sees the latest version on their next page load, not a stale snapshot from when the link was created."
+    - "Guest attempts to modify data by crafting direct API requests using the share token; all write endpoints reject the request with an appropriate error and the attempt is logged."
+    - "Multiple guests access the same share link simultaneously; each sees only their own assigned items and tasks, not those assigned to other guests, while the shared itinerary and meal plan are identical for all."
+  complexity: "high"
+  owner: "Jason Robey"
+  status: "draft"

@@ -1,0 +1,17 @@
+intention:
+  id: "INT-005"
+  product: "PROD-001"
+  statement: >
+    Users can track persistent inventory stored in the camper — food,
+    supplies, and gear — with quantities, expiration dates, and condition,
+    so they always know what's on hand between trips.
+  rationale: >
+    The camper holds food and gear between trips, but there's no tracking
+    today. This leads to waste (expired food), surprise shortages, and
+    redundant purchases. A living inventory solves this and feeds into
+    grocery list generation.
+  priority: "high"
+  dependencies:
+    - "INT-001"
+  owner: "Jason Robey"
+  status: "draft"

@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-003"
+  intention: "INT-001"
+  description: "Multiple planners can access and edit the same trip simultaneously with changes reflected in real time across all connected clients."
+  validation_criteria: "When Planner A edits a trip field, Planner B sees the change within 3 seconds without refreshing. Concurrent edits to different fields both persist. The system indicates which planners are currently viewing or editing the trip."
+  edge_cases:
+    - "Two planners edit the same field at the same time — system must apply a conflict resolution strategy (last-write-wins, merge, or prompt user) rather than silently dropping one edit."
+    - "A planner loses network connectivity mid-edit and reconnects — their pending changes must either sync correctly or the user must be notified that their changes were lost."
+    - "One planner deletes the trip while another is actively editing it — the editing planner must be notified immediately rather than saving edits to a nonexistent trip."
+    - "A large number of planners (10+) connect to the same trip simultaneously — system must not degrade to the point of missed updates or significant latency."
+  complexity: "high"
+  owner: "Jason Robey"
+  status: "draft"

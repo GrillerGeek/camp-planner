@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-020"
+  intention: "INT-006"
+  description: "Tasks can be assigned to any trip participant, whether they are a planner with full access or a guest with limited access. Assignment makes task ownership clear and enables accountability."
+  validation_criteria: "Given a trip with multiple participants (planners and guests), when a user assigns a task to any participant, then that participant's name appears on the task and the participant can view their assigned tasks. Reassignment to a different participant updates the display accordingly."
+  edge_cases:
+    - "Assigned participant is removed from the trip -- task should either become unassigned or flag the orphaned assignment for the planner to reassign."
+    - "Task is assigned to a guest who has not yet accepted the trip invitation -- assignment should be allowed, but the guest sees the task only after accepting."
+    - "A participant is assigned more tasks than is practical -- system should not prevent it, but could surface a count of assigned tasks per person for load balancing."
+    - "User attempts to assign a task to someone not on the trip participant list -- system should reject the assignment and only offer valid participants."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"

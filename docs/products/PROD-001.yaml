@@ -1,0 +1,49 @@
+product:
+  id: "PROD-001"
+  name: "Camp Planner"
+  status: "discovery"
+  owner: "Jason Robey"
+
+  problem_statement: >
+    Camping trip planning is fragmented across Excel workbooks and task apps,
+    with no single source of truth or real-time collaboration. This leads to
+    duplicate packing lists, forgotten or wrong items, unclear task ownership,
+    and meals that aren't planned until the last minute. Copy-pasting from
+    previous trips is error-prone and doesn't account for seasonal or
+    trip-type differences. The camper's persistent food inventory has no
+    dedicated tracking, leading to waste and surprise shortages.
+
+  target_audience: >
+    Primary users: Jason and Angie Robey — a couple who camps regularly and
+    handles all trip planning, packing, meal prep, and logistics. They need
+    full edit/plan/assign capabilities with real-time sync between them.
+    Secondary users: Friends and guests who join trips occasionally. They
+    need view-only access to see the trip plan, what's assigned to them,
+    and what to expect — but do not participate in core planning.
+
+  value_proposition: >
+    A single hub that replaces scattered spreadsheets and task apps with
+    one collaborative trip planning experience. Smart packing lists adapt
+    to season and trip type, eliminating copy-paste errors and forgotten
+    gear. A trip dashboard shows readiness at a glance. Meal planning
+    suggests recipes based on past favorites and local flavors at the
+    destination. Trip history preserves memories and notes for future
+    reference. Real-time updates keep both planners in sync so nothing
+    falls through the cracks.
+
+  strategic_alignment: >
+    Personal/family use with potential to productize if the experience is
+    strong. No external deadlines or compliance requirements. Success is
+    measured by whether it replaces the current Excel + task app workflow
+    entirely and makes trip prep feel organized rather than stressful.
+
+  context:
+    stack: "Next.js 14+ (App Router), Tailwind CSS, Supabase (PostgreSQL, Auth, Realtime), Vercel hosting"
+    patterns: "PWA (Progressive Web App), server components with client islands, Supabase Row Level Security for multi-user access control, real-time subscriptions for collaborative editing"
+    conventions:
+      - "TypeScript throughout"
+      - "App Router file-based routing (app/ directory)"
+      - "Supabase client via @supabase/ssr for server/client components"
+      - "Tailwind CSS utility classes, no CSS modules"
+      - "Mobile-first responsive design (PWA target)"
+    auth: "Google OAuth via Supabase Auth. Two access levels: 'planner' (full CRUD) and 'viewer' (read-only). Trip-level sharing via invite links."

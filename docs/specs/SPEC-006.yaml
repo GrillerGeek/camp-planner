@@ -1,0 +1,264 @@
+spec:
+  id: "SPEC-006"
+  name: "Grocery List Generation & Camper Inventory"
+  product: "PROD-001"
+  status: "draft"
+  owner: "Jason Robey"
+  created: "2026-03-27"
+
+  context:
+    intentions:
+      - "INT-004"
+      - "INT-005"
+    expectations:
+      - "EXP-012"
+      - "EXP-013"
+      - "EXP-014"
+      - "EXP-015"
+      - "EXP-016"
+      - "EXP-017"
+      - "EXP-018"
+    dependencies:
+      - id: "SPEC-001"
+        reason: "Authentication and user identity required for inventory ownership and RLS policies."
+      - id: "SPEC-002"
+        reason: "Trip CRUD provides the trip entity that grocery lists attach to and that post-trip reconciliation references."
+      - id: "SPEC-005"
+        reason: "Meal plans and recipes with ingredient data are the source for grocery list auto-generation. The recipes table provides ingredient names, quantities, and units."
+    stack:
+      runtime: "Next.js 14+ (App Router), TypeScript"
+      styling: "Tailwind CSS utility classes, mobile-first responsive design"
+      backend: "Supabase (PostgreSQL, Auth, Row Level Security)"
+      hosting: "Vercel"
+      patterns:
+        - "PWA (Progressive Web App)"
+        - "Server components with client islands"
+        - "Supabase client via @supabase/ssr for server/client components"
+        - "App Router file-based routing (app/ directory)"
+
+  expectations:
+    - id: "EXP-012"
+      summary: "Grocery list auto-generates from meal plan ingredients, aggregating all required ingredients across all meals into a consolidated list with quantities and units."
+      validation_criteria: >
+        Given a meal plan with at least one meal containing ingredients, every ingredient from every
+        meal appears on the grocery list with correct aggregated quantities (e.g., two recipes each
+        requiring 1 lb chicken yields 2 lbs chicken).
+      edge_cases:
+        - "Meal plan has no meals or all meals have zero ingredients -- grocery list should be empty with a clear message."
+        - "Two recipes use the same ingredient in different units (e.g., 2 cups milk and 500 ml milk) -- convert and consolidate into a single line item."
+        - "Meal plan updated after initial grocery list generation -- grocery list must regenerate or update to reflect the change."
+        - "Ingredient names have minor variations (e.g., 'garlic cloves' vs 'garlic') -- attempt to match or flag potential duplicates."
+
+    - id: "EXP-013"
+      summary: "Grocery list subtracts items already in camper inventory so users do not purchase duplicates."
+      validation_criteria: >
+        Given a meal plan requiring 3 lbs of rice and camper inventory containing 2 lbs of rice,
+        the grocery list shows 1 lb of rice needed. If inventory fully covers an ingredient, that
+        item does not appear on the grocery list.
+      edge_cases:
+        - "Inventory item is past its expiration date -- do not subtract expired items; list the full quantity needed."
+        - "Inventory quantity exceeds required amount -- omit item entirely, never show negative quantities."
+        - "Inventory updated after grocery list generation -- grocery list reflects updated inventory on next view or refresh."
+        - "Inventory and recipe use different units (e.g., grams vs ounces) -- convert units before subtracting."
+
+    - id: "EXP-014"
+      summary: "Users can check off purchased items and add manual items to the grocery list as an interactive shopping checklist."
+      validation_criteria: >
+        When a user checks off an item, it is visually marked as purchased and persists across sessions.
+        When a user adds a manual item (name and optional quantity), it appears alongside auto-generated
+        items and can be checked off.
+      edge_cases:
+        - "Meal plan changes and grocery list regenerates -- manually checked-off status for still-relevant items is preserved."
+        - "Manual item has the same name as an auto-generated item -- merge or clearly distinguish."
+        - "All items checked off -- list indicates shopping is complete rather than appearing empty."
+        - "Two users edit concurrently (one checking off in store, another adding items) -- both changes preserved without data loss."
+
+    - id: "EXP-015"
+      summary: "Users can add, edit, and remove inventory items with quantity, category, and expiration date."
+      validation_criteria: >
+        An authenticated user can add an item with name, quantity, category, and expiration date.
+        The item appears in the inventory list. Editing any field saves and reflects immediately.
+        Removing an item removes it from the inventory.
+      edge_cases:
+        - "Item with no name or zero/negative quantity -- reject with clear validation error."
+        - "Expiration date in the past -- allow but immediately flag as expired."
+        - "Item edited while another user views inventory -- updated data visible on next refresh or in real time."
+        - "Category left blank -- assign a default category ('Uncategorized') or require the field."
+
+    - id: "EXP-016"
+      summary: "Inventory persists between trips and is not tied to a single trip. It represents the physical state of the camper at all times."
+      validation_criteria: >
+        Inventory items added during or after Trip A are still present when creating Trip B.
+        Deleting or archiving a trip does not remove or alter inventory data.
+      edge_cases:
+        - "Trip deleted while its grocery list references inventory -- inventory remains intact."
+        - "No active trips -- inventory is still fully accessible and editable."
+        - "Multiple campers/vehicles (future feature) -- inventory scoped to a camper entity, not globally shared."
+        - "Schema migrations -- inventory records preserved without data loss."
+
+    - id: "EXP-017"
+      summary: "Expiring items are flagged with visual warnings when approaching or past their expiration date."
+      validation_criteria: >
+        Items with expiration within 7 days show a warning indicator (e.g., yellow highlight/icon).
+        Items past expiration show an expired indicator (e.g., red highlight/icon). Items with no
+        expiration date show no warning.
+      edge_cases:
+        - "Item expires today -- treat as expiring (warning state) or expired per defined rules, but never show no warning."
+        - "No expiration date set -- no warning displayed; item excluded from expiration-filtered views."
+        - "Timezone differences -- use consistent date reference (UTC or user's local date) to avoid off-by-one errors."
+        - "Many items expiring simultaneously -- UI remains usable; consider summary count of expiring items."
+
+    - id: "EXP-018"
+      summary: "Inventory can be updated post-trip to reflect consumed and added items via a reconciliation flow."
+      validation_criteria: >
+        After a completed trip, the user can adjust inventory quantities (reduce consumed items,
+        add new items, remove fully consumed items). Changes persist for future trips.
+      edge_cases:
+        - "Quantity reduced to zero -- prompt for removal or auto-remove rather than leaving zero-quantity entries."
+        - "User never performs reconciliation -- inventory remains in pre-trip state without corruption; reconciliation is optional."
+        - "Back-to-back trips -- reconciliation from one trip must not conflict with a concurrent trip's grocery planning."
+        - "User accidentally sets negative quantity -- prevent with input validation."
+
+  boundaries:
+    in_scope:
+      - "Supabase tables: camper_inventory, trip_grocery_lists, trip_grocery_items"
+      - "Camper inventory management UI: add, edit, remove items with name, quantity, category, and expiration date"
+      - "Expiration warning indicators: visual badges for approaching (within 7 days) and expired items"
+      - "Grocery list auto-generation from meal plan ingredients minus inventory on hand"
+      - "Unit conversion logic for ingredient aggregation and inventory subtraction (approximate conversions are acceptable)"
+      - "Interactive grocery checklist with check-off persistence and manual item addition"
+      - "Post-trip inventory reconciliation flow: review what was consumed, adjust quantities, add new items"
+      - "RLS policies: planners get full CRUD on inventory and grocery lists; viewers get read-only access to trip grocery lists"
+    out_of_scope:
+      - "Do not modify meal planning UI or recipe CRUD (owned by SPEC-005)."
+      - "Do not implement task management or chore assignment."
+      - "Do not over-engineer unit conversion -- approximate conversions are acceptable (e.g., 1 cup ~ 240 ml)."
+      - "Do not implement barcode scanning or OCR for inventory entry."
+      - "Do not implement automatic inventory deduction during a trip (reconciliation is manual and post-trip)."
+      - "Do not implement multi-camper/vehicle inventory scoping (future enhancement)."
+
+  deliverables:
+    database:
+      - name: "camper_inventory"
+        description: >
+          Persistent camper inventory, independent of trips. Fields: id (uuid PK),
+          user_id (uuid FK to auth.users), name (text, not null), quantity (numeric, not null, check > 0),
+          unit (text, nullable -- e.g., 'lbs', 'cans', 'count'), category (text, default 'Uncategorized'),
+          expiration_date (date, nullable), notes (text, nullable),
+          created_at (timestamptz), updated_at (timestamptz).
+      - name: "trip_grocery_lists"
+        description: >
+          A grocery list instance for a specific trip. Fields: id (uuid PK),
+          trip_id (uuid FK to trips ON DELETE CASCADE), generated_at (timestamptz -- when last auto-generated),
+          created_at (timestamptz), updated_at (timestamptz). One grocery list per trip (unique on trip_id).
+      - name: "trip_grocery_items"
+        description: >
+          Individual items on a trip's grocery list. Fields: id (uuid PK),
+          grocery_list_id (uuid FK to trip_grocery_lists ON DELETE CASCADE),
+          name (text, not null), quantity (numeric, nullable), unit (text, nullable),
+          category (text, nullable), is_checked (boolean, default false),
+          checked_by (uuid FK to auth.users, nullable), checked_at (timestamptz, nullable),
+          source (text -- 'auto' for generated from meal plan, 'manual' for user-added),
+          recipe_ingredient_key (text, nullable -- identifier linking back to the source ingredient for regeneration preservation),
+          created_at (timestamptz), updated_at (timestamptz).
+
+    rls_policies:
+      - table: "camper_inventory"
+        policies:
+          - "SELECT, INSERT, UPDATE, DELETE: user_id = auth.uid()"
+      - table: "trip_grocery_lists"
+        policies:
+          - "SELECT: user is a participant (planner or viewer) on the trip"
+          - "INSERT, UPDATE, DELETE: user is a planner on the trip"
+      - table: "trip_grocery_items"
+        policies:
+          - "SELECT: user is a participant (planner or viewer) on the trip (via join to trip_grocery_lists -> trips)"
+          - "INSERT, UPDATE, DELETE: user is a planner on the trip"
+
+    ui_components:
+      - name: "Camper Inventory Page"
+        route: "/inventory"
+        description: >
+          Lists all inventory items grouped by category. Each item shows name, quantity with unit,
+          and expiration status (green/normal, yellow/expiring-soon, red/expired badges). Supports
+          search by name and filter by category and expiration status. Actions: add new item, edit
+          inline or via modal, delete with confirmation. Accessible outside of any trip context.
+      - name: "Inventory Item Editor"
+        description: >
+          Form (inline or modal) for adding/editing an inventory item. Fields: name (required),
+          quantity (required, positive number), unit (optional dropdown with common units),
+          category (dropdown with predefined categories + custom entry), expiration date (date picker, optional),
+          notes (optional text). Validates positive quantity and non-empty name.
+      - name: "Trip Grocery List Page"
+        route: "/trips/[tripId]/grocery"
+        description: >
+          Displays the trip's grocery list with auto-generated and manual items. Grouped by category.
+          Each item shows name, quantity needed, unit, source badge ('auto'/'manual'), and check-off toggle.
+          'Generate from meal plan' button triggers aggregation from SPEC-005 meal plan data minus
+          current inventory. 'Refresh' button regenerates while preserving manual items and checked states.
+          Progress indicator showing checked/total items. Completed state when all checked.
+      - name: "Add Manual Grocery Item"
+        description: >
+          Inline form or quick-add at the top/bottom of the grocery list. Fields: name (required),
+          quantity (optional), unit (optional), category (optional). Added items are tagged with
+          source='manual' and persist through regeneration.
+      - name: "Post-Trip Reconciliation Page"
+        route: "/trips/[tripId]/reconcile"
+        description: >
+          Guided flow for updating inventory after a trip. Shows a list of inventory items with
+          current quantities and allows the user to adjust: reduce quantity for consumed items,
+          set to zero to remove, or add new items brought back. Items reduced to zero prompt
+          for removal confirmation. Summary of changes before saving. Reconciliation is optional
+          and can be accessed from the trip detail page after the trip end date has passed.
+
+    logic:
+      - name: "Ingredient Aggregation"
+        description: >
+          Collects all ingredients from all trip_meals (via recipe_snapshot or linked recipe) in
+          the trip's meal plan. Groups by normalized ingredient name (lowercase, trimmed). Aggregates
+          quantities with unit conversion where possible. Conversion table covers common cooking units:
+          cups/ml/liters, oz/grams/lbs/kg, tsp/tbsp. Approximate conversions are acceptable.
+          Flags potential duplicate ingredient names with fuzzy matching for user review.
+      - name: "Inventory Subtraction"
+        description: >
+          For each aggregated ingredient, looks up matching camper_inventory items by name (normalized).
+          Excludes inventory items past their expiration_date. Converts units if needed. Subtracts
+          available inventory quantity from required quantity. Items fully covered by inventory are
+          omitted from the grocery list. Items partially covered show the remaining needed quantity.
+          Negative results are clamped to zero (never shown).
+      - name: "Grocery List Regeneration"
+        description: >
+          When meal plan changes or user triggers a refresh: re-run aggregation and subtraction.
+          Preserve manual items (source='manual'). Preserve checked state for auto items whose
+          recipe_ingredient_key still exists in the new generation. Remove auto items no longer
+          needed. Add new auto items as unchecked.
+
+  validation:
+    manual_tests:
+      - "Add 5 inventory items across 3 categories with various expiration dates. Verify all appear correctly with proper badges."
+      - "Verify items expiring within 7 days show yellow warning and expired items show red indicator."
+      - "Create a trip with a meal plan containing 3 recipes. Generate grocery list and verify all ingredients appear with correct aggregated quantities."
+      - "Add 2 lbs rice to inventory. Generate grocery list for a meal plan requiring 3 lbs rice. Verify grocery list shows 1 lb rice."
+      - "Add an expired inventory item. Verify it is NOT subtracted from the grocery list."
+      - "Check off grocery items. Modify the meal plan (add a meal). Regenerate the list and verify checked states persist for unchanged items."
+      - "Add a manual grocery item. Regenerate the list and verify the manual item persists."
+      - "Complete a trip. Open the reconciliation page. Reduce some item quantities, remove one, add one new. Verify inventory reflects all changes."
+      - "Verify inventory is accessible and editable when no trips exist."
+      - "Delete a trip and verify camper inventory is unaffected."
+      - "Test unit conversion: recipe requires 500ml milk, inventory has 1 cup milk. Verify correct subtraction."
+    automated_tests:
+      - "Unit tests for ingredient aggregation logic: same ingredient across multiple recipes, same ingredient in different units, empty meal plan."
+      - "Unit tests for inventory subtraction: full coverage, partial coverage, expired items excluded, unit conversion."
+      - "Unit tests for grocery list regeneration: preservation of manual items, preservation of checked state, removal of stale auto items."
+      - "Unit tests for RLS policies: planners can CRUD inventory and grocery lists; viewers can only read trip grocery lists; non-participants blocked."
+      - "Integration test: create inventory -> create trip with meal plan -> generate grocery list -> verify subtraction -> reconcile post-trip -> verify inventory updated."
+    acceptance_criteria:
+      - "All seven expectations (EXP-012 through EXP-018) pass their validation criteria."
+      - "Grocery list correctly aggregates ingredients from meal plans with unit consolidation."
+      - "Inventory subtraction correctly excludes expired items and handles unit conversion."
+      - "Manual grocery items and checked states survive list regeneration."
+      - "Expiration warnings display correctly for approaching and expired inventory items."
+      - "Post-trip reconciliation updates inventory without data loss or corruption."
+      - "Inventory persists independently of trip lifecycle -- trip deletion does not affect inventory."
+      - "RLS policies enforce planner/viewer access correctly."
+      - "Mobile-first responsive design: grocery list and inventory are usable on phone screens."

@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-001"
+  intention: "INT-001"
+  description: "Users can create, read, update, and delete camping trips with all required fields: destination, start date, end date, campsite info, and participant list."
+  validation_criteria: "A trip can be created with all required fields populated and is immediately retrievable. Updates to any field persist correctly. Deletion removes the trip and all associated data (packing lists, meals, tasks). Attempts to create a trip missing required fields are rejected with a descriptive error."
+  edge_cases:
+    - "Trip end date is before start date — system must reject with a clear validation error."
+    - "Deleting a trip while another planner is actively viewing or editing it — system must handle gracefully without data corruption or unhandled exceptions."
+    - "Creating a trip with a destination that contains special characters, Unicode, or extremely long strings — system must sanitize or validate input length."
+    - "Two users attempt to delete the same trip simultaneously — only one deletion should succeed, the other should receive a 'not found' or already-deleted response."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"

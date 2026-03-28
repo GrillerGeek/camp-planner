@@ -1,0 +1,17 @@
+intention:
+  id: "INT-008"
+  product: "PROD-001"
+  statement: >
+    Users can log memories, notes, and highlights from completed trips,
+    building a trip history that informs future planning and preserves
+    the experience.
+  rationale: >
+    Camping memories fade and lessons learned get lost. A trip journal
+    tied to each trip captures what worked, what didn't, favorite spots,
+    and personal highlights — making each future trip better informed
+    and preserving the story.
+  priority: "medium"
+  dependencies:
+    - "INT-001"
+  owner: "Jason Robey"
+  status: "draft"

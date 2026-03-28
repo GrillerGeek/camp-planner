@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-009"
+  intention: "INT-003"
+  description: "The AI suggests meals based on the user's past trip favorites and frequently used recipes from their recipe library."
+  validation_criteria: "When a user opens a meal slot and requests suggestions, the system returns a ranked list of meal recommendations. Meals used on 3+ previous trips appear with higher priority. Suggestions include the meal name, how many times it was used before, and an option to add it directly to the slot. If the user has no trip history, the system falls back to popular community meals or a curated default set."
+  edge_cases:
+    - "User has only one previous trip with one meal — suggestions must still work, returning that meal plus fallback recommendations rather than an empty or broken list."
+    - "User's past meals include items that are no longer in their recipe library (deleted recipes) — suggestions must handle missing references gracefully, either skipping them or showing them as 'recipe unavailable'."
+    - "AI suggestion service is unavailable or times out — system must show a clear fallback message and allow manual meal entry without blocking the workflow."
+    - "Two users on the same trip have conflicting favorites — system should surface suggestions from both users' histories, not just one."
+  complexity: "high"
+  owner: "Jason Robey"
+  status: "draft"

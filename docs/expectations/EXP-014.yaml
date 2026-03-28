@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-014"
+  intention: "INT-004"
+  description: "Users can check off purchased items and add manual items to the grocery list. The list functions as an interactive shopping checklist where auto-generated items can be marked as purchased and users can insert ad-hoc items not derived from the meal plan."
+  validation_criteria: "Given a grocery list with at least one item, when a user checks off an item, then that item is visually marked as purchased and persists across sessions. When a user adds a manual item with a name and optional quantity, then it appears on the list alongside auto-generated items and can also be checked off."
+  edge_cases:
+    - "User checks off an item then the meal plan changes and the grocery list regenerates -- manually checked-off status for still-relevant items should be preserved."
+    - "User adds a manual item with the same name as an auto-generated item -- system should either merge them or clearly distinguish between the two to avoid confusion."
+    - "All items are checked off -- the list should indicate shopping is complete rather than appearing empty."
+    - "Two users edit the grocery list concurrently (e.g., one checking off items in the store while another adds a manual item) -- both changes must be preserved without data loss."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"

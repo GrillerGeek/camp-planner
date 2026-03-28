@@ -1,0 +1,17 @@
+intention:
+  id: "INT-006"
+  product: "PROD-001"
+  statement: >
+    Users can create, assign, and track pre-trip preparation tasks across
+    the planning team, with clear ownership and completion status visible
+    to all planners in real time.
+  rationale: >
+    Trip prep involves many tasks split between people (buy ice, charge
+    batteries, prep firewood, etc.). Without shared task tracking, things
+    get assumed and dropped. Real-time visibility prevents "I thought you
+    were doing that" moments.
+  priority: "high"
+  dependencies:
+    - "INT-001"
+  owner: "Jason Robey"
+  status: "draft"

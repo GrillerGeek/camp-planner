@@ -1,0 +1,183 @@
+spec:
+  id: "SPEC-002"
+  product: "PROD-001"
+  intentions:
+    - "INT-001"
+  expectations:
+    - "EXP-001"
+    - "EXP-002"
+  status: "draft"
+
+  context:
+    stack: "Next.js 14+ (App Router), Tailwind CSS, Supabase (PostgreSQL, Auth, Realtime), Vercel"
+    patterns: "PWA, server components with client islands, Supabase RLS, real-time subscriptions"
+    conventions:
+      - "TypeScript throughout"
+      - "App Router file-based routing (app/ directory)"
+      - "Supabase client via @supabase/ssr"
+      - "Tailwind CSS utility classes, mobile-first"
+    existing_code_refs:
+      - path: "app/dashboard/page.tsx"
+        note: "Empty dashboard shell created by SPEC-001. This spec replaces the placeholder content with the trip list view."
+      - path: "lib/supabase/client.ts"
+        note: "Browser Supabase client created by SPEC-001. Use this for all client-side Supabase queries."
+      - path: "lib/supabase/server.ts"
+        note: "Server Supabase client created by SPEC-001. Use this for server component data fetching."
+      - path: "supabase/migrations/001_initial_schema.sql"
+        note: "Contains profiles, trips, and trip_members tables with RLS policies from SPEC-001. This spec builds on those tables — do not recreate or modify them."
+    auth: "Google OAuth via Supabase Auth. Two roles: planner (full CRUD), viewer (read-only). Trip-level sharing via invite links."
+
+  expectations:
+    - id: "EXP-001"
+      description: "Users can create, read, update, and delete camping trips with all required fields: destination, start date, end date, campsite info, and participant list."
+      validation: "A trip can be created with all required fields populated and is immediately visible in the trip list. Updates to any field persist correctly and are reflected in the UI. Deletion removes the trip from the list. Attempts to create a trip missing required fields are rejected with descriptive inline validation errors. Only planners can edit or delete; viewers see read-only views."
+      edge_cases:
+        - "Trip end date is before start date — form must reject with a clear validation error before submission and the server must also enforce the constraint."
+        - "Deleting a trip while another planner is actively viewing or editing it — the viewing planner must be handled gracefully (redirect to trip list with a toast notification, not an unhandled error)."
+        - "Creating a trip with a destination that contains special characters, Unicode, or extremely long strings (over 200 chars) — input must be validated and truncated or rejected with feedback."
+        - "Two users attempt to delete the same trip simultaneously — only one deletion should succeed; the other receives a 'trip not found' message."
+    - id: "EXP-002"
+      description: "The trip dashboard displays a readiness overview showing completion status for packing lists, meal plans, task assignments, and reservations."
+      validation: "Dashboard shows four readiness sections (packing, meals, tasks, reservations) each in an empty/placeholder state with 0% or 'not started' indicators since those features are not yet implemented. The layout is correct and the sections are clearly labeled. A brand new trip shows the empty state for all four categories."
+      edge_cases:
+        - "Trip has no packing list, no meals, no tasks, and no reservations — dashboard must display a meaningful empty state (e.g., 'No items yet — add packing items to get started') rather than 0/0 or NaN percentages."
+        - "Dashboard is viewed on a slow or intermittent network connection — loading skeletons must appear for each section while data is being fetched, not a blank or broken layout."
+        - "Viewer-role users see the same dashboard layout but without edit/delete controls."
+
+  boundaries:
+    - "Do NOT implement packing lists, meal planning, tasks, or reservations — only render empty placeholder sections for each on the trip dashboard."
+    - "Do NOT implement invite links or trip sharing UI — trip_members are managed only by direct Supabase inserts for now (the trip creator is auto-added as a planner)."
+    - "Do NOT implement Supabase Realtime subscriptions — that is covered by SPEC-003. Standard request/response data fetching only."
+    - "Do NOT modify the auth flow, middleware, or database schema from SPEC-001. If a new migration is needed for indexes, create a new migration file (002_*)."
+    - "Do NOT add third-party component libraries (e.g., shadcn/ui, Radix, react-hook-form). Use native form handling and Tailwind utility classes."
+    - "Do NOT implement search, filtering, sorting, or pagination on the trip list — those are future enhancements."
+
+  deliverables:
+    - description: "Trip list view on the dashboard page"
+      details: |
+        Replace the placeholder content in app/dashboard/page.tsx with a trip list.
+
+        File: app/dashboard/page.tsx (server component)
+          - Fetch all trips the current user is a member of via Supabase, ordered by start_date desc
+          - Render a grid of trip cards (responsive: 1 column on mobile, 2 on tablet, 3 on desktop)
+          - Each trip card shows: name, destination, date range (formatted as "Mar 15 - 18, 2026"), member count
+          - "Create Trip" button in the page header (visible only to authenticated users)
+          - Empty state: when no trips exist, show an illustration placeholder and "Plan your first camping trip" CTA
+
+        File: app/dashboard/components/TripCard.tsx (client component)
+          - Props: trip object (id, name, destination, start_date, end_date, member_count)
+          - Clickable card that navigates to /dashboard/trips/[tripId]
+          - Shows a colored accent bar using camp theme colors
+          - Displays relative date info (e.g., "In 12 days" or "3 days ago")
+
+    - description: "Trip create and edit forms"
+      details: |
+        File: app/dashboard/trips/new/page.tsx
+          - Server component that renders the TripForm in create mode
+
+        File: app/dashboard/trips/[tripId]/edit/page.tsx
+          - Server component that fetches existing trip data and renders TripForm in edit mode
+          - Must verify the current user is a planner for this trip; redirect to trip detail if viewer
+
+        File: app/dashboard/trips/components/TripForm.tsx (client component)
+          - Props: mode ('create' | 'edit'), initialData? (trip object for edit mode)
+          - Fields:
+            - name: text input, required, max 200 chars
+            - destination: text input, required, max 500 chars
+            - start_date: date input, required
+            - end_date: date input, required, must be >= start_date
+            - campsite_info: textarea, optional
+            - notes: textarea, optional
+          - Client-side validation:
+            - All required fields must be filled
+            - end_date >= start_date (show inline error: "End date must be on or after start date")
+            - name length <= 200 chars
+          - On submit (create mode):
+            - Insert into trips table via Supabase
+            - Insert into trip_members table with role='planner' for the current user
+            - Redirect to /dashboard/trips/[newTripId]
+          - On submit (edit mode):
+            - Update the trips row via Supabase
+            - Redirect to /dashboard/trips/[tripId]
+          - Cancel button returns to the previous page
+          - Show loading state on the submit button during save
+
+    - description: "Trip detail page with readiness dashboard"
+      details: |
+        File: app/dashboard/trips/[tripId]/page.tsx (server component)
+          - Fetch trip data and current user's role (planner vs viewer) from Supabase
+          - If trip not found, show a 404-style message with link back to dashboard
+          - Render trip header: name, destination, date range, campsite info
+          - Render action buttons (edit, delete) only if user role is 'planner'
+          - Render four readiness sections in a 2x2 grid (responsive: stacked on mobile)
+
+        File: app/dashboard/trips/[tripId]/components/TripHeader.tsx
+          - Props: trip object, userRole ('planner' | 'viewer')
+          - Displays trip name as h1, destination with a map pin icon (inline SVG), date range
+          - Edit button (links to edit page) and Delete button, both visible only for planners
+
+        File: app/dashboard/trips/[tripId]/components/ReadinessCard.tsx (client component)
+          - Props: title (string), icon (React node), status ('empty' | 'in_progress' | 'complete'), percentage (number), emptyMessage (string)
+          - For this spec, all four cards will be in 'empty' status
+          - Renders a card with: icon, title, progress bar (0%), and empty state message
+          - Four instances:
+            - Packing: "No packing list yet"
+            - Meals: "No meals planned yet"
+            - Tasks: "No tasks assigned yet"
+            - Reservations: "No reservations added yet"
+
+        File: app/dashboard/trips/[tripId]/components/DeleteTripDialog.tsx (client component)
+          - Confirmation dialog: "Are you sure you want to delete [trip name]? This cannot be undone."
+          - Confirm button calls Supabase delete, then redirects to /dashboard
+          - Cancel button closes the dialog
+          - Uses native HTML <dialog> element styled with Tailwind
+
+    - description: "TypeScript types and Supabase query helpers"
+      details: |
+        File: lib/types/trip.ts
+          - Export interface Trip:
+              id: string
+              name: string
+              destination: string
+              start_date: string
+              end_date: string
+              campsite_info: string | null
+              notes: string | null
+              created_by: string
+              created_at: string
+              updated_at: string
+          - Export interface TripMember:
+              id: string
+              trip_id: string
+              user_id: string
+              role: 'planner' | 'viewer'
+              joined_at: string
+          - Export interface TripWithMemberCount extends Trip:
+              member_count: number
+
+        File: lib/queries/trips.ts
+          - getTripsForUser(supabase): fetches trips where user is a member, with member count
+          - getTripById(supabase, tripId): fetches a single trip with members
+          - createTrip(supabase, data): inserts trip and trip_member, returns new trip
+          - updateTrip(supabase, tripId, data): updates trip fields
+          - deleteTrip(supabase, tripId): deletes trip (cascade handles members)
+          - getUserRoleForTrip(supabase, tripId): returns 'planner' | 'viewer' | null
+
+  validation:
+    automated:
+      - "npm run build completes without errors after all changes"
+      - "Creating a trip with valid fields succeeds and the trip appears in the list"
+      - "Creating a trip with end_date before start_date is rejected by client-side validation"
+      - "Creating a trip with an empty name is rejected by client-side validation"
+      - "Editing a trip updates the fields and redirects back to the trip detail"
+      - "Deleting a trip removes it from the list and redirects to the dashboard"
+      - "Navigating to a trip the user is not a member of returns no data (RLS enforcement)"
+      - "A viewer-role user cannot see edit or delete buttons on the trip detail page"
+      - "TypeScript strict mode passes with no type errors across all new files"
+    human_review:
+      - "Trip list renders correctly on mobile (375px), tablet (768px), and desktop (1280px)"
+      - "Trip cards show correct relative date information"
+      - "Trip detail page readiness sections display clear empty states"
+      - "Delete confirmation dialog is clear and not easily triggered accidentally"
+      - "Form validation errors appear inline next to the relevant field"
+      - "Loading states appear during trip creation and deletion"

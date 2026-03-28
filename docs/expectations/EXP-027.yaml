@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-027"
+  intention: "INT-008"
+  description: "Past trips are browsable and searchable by destination, date range, or keyword across trip names, notes, and journal entries."
+  validation_criteria: "A user with multiple completed trips can browse a chronological list of past trips, search by campground or destination name, filter by date range, and search by keyword. Results accurately match the query and return within 2 seconds."
+  edge_cases:
+    - "User has zero completed trips and accesses the trip history view; the system shows a meaningful empty state (e.g., 'No past trips yet') rather than a blank page or error."
+    - "User searches for a keyword that appears only inside a journal entry's text (not in the trip name or destination); the search still surfaces that trip in the results."
+    - "User searches with special characters or Unicode (e.g., accented campground names like 'Lac-Supérieur'); results match correctly without encoding errors."
+    - "User has 500+ completed trips spanning several years; pagination or infinite scroll keeps the list performant and the search returns results without timeout."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"

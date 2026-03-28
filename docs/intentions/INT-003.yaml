@@ -1,0 +1,17 @@
+intention:
+  id: "INT-003"
+  product: "PROD-001"
+  statement: >
+    Users can plan meals for each day of a trip, with AI-powered suggestions
+    based on past favorites, trip history, and local flavors at the
+    destination.
+  rationale: >
+    Meal planning is currently ad-hoc and often last-minute. Having a
+    structured meal plan tied to the trip — with intelligent suggestions
+    that learn from past trips and surface local specialties — reduces
+    stress and improves the camping experience.
+  priority: "high"
+  dependencies:
+    - "INT-001"
+  owner: "Jason Robey"
+  status: "draft"

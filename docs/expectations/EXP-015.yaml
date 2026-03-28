@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-015"
+  intention: "INT-005"
+  description: "Users can add, edit, and remove inventory items with quantity, category, and expiration date. The camper inventory provides full CRUD operations for tracking what is stored in the camper."
+  validation_criteria: "Given an authenticated user, when they add an item with name, quantity, category, and expiration date, then the item appears in the inventory list. When they edit any field of an existing item, then the changes are saved and reflected immediately. When they remove an item, then it no longer appears in the inventory."
+  edge_cases:
+    - "User attempts to add an item with no name or zero/negative quantity -- system should reject the entry with a clear validation error."
+    - "User sets an expiration date in the past -- system should allow it (item may already be expired) but immediately flag it as expired."
+    - "User edits an item while another user is viewing the inventory -- the viewing user should see the updated data on their next refresh or in real time."
+    - "Category field is left blank -- system should either assign a default category (e.g., 'Uncategorized') or require the field."
+  complexity: "low"
+  owner: "Jason Robey"
+  status: "draft"

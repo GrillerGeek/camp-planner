@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-026"
+  intention: "INT-008"
+  description: "Users can mark a trip as 'completed' and add journal entries with text and photos to record memories."
+  validation_criteria: "A user can change a trip's status to 'completed,' then create one or more journal entries containing free-text content and attached photos. Entries are persisted, display in chronological order, and photos render correctly when the trip is viewed later."
+  edge_cases:
+    - "User marks a trip as completed before the trip's end date has passed; the system either allows it (user knows best) or warns but does not block the action."
+    - "User uploads a photo in an uncommon format (HEIC, WebP, TIFF) or an image exceeding 20 MB; the system converts or rejects with a clear error, and does not silently drop the upload."
+    - "User attempts to add a journal entry to a trip that has not been marked as completed; the system either prompts them to mark it completed first or allows entries on active trips as well."
+    - "User reverts a trip from 'completed' back to 'active'; existing journal entries and photos are preserved and remain accessible."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"

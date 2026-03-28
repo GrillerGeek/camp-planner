@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-031"
+  intention: "INT-009"
+  description: "Shareable links can be revoked by any planner on the trip at any time, immediately cutting off guest access."
+  validation_criteria: "A planner revokes a share link, and within 60 seconds any guest attempting to access that URL receives a 'This link is no longer valid' message instead of trip data. Previously loaded pages do not allow further data fetching after revocation."
+  edge_cases:
+    - "Guest has the shared trip page open in their browser at the moment the link is revoked; subsequent API calls (e.g., polling for updates or navigating to a sub-view) fail gracefully with a clear 'access revoked' message rather than a generic error."
+    - "Planner revokes the link and then immediately generates a new share link for the same trip; the old link remains invalid while the new link works, and no data leaks through the old token."
+    - "Trip has multiple planners and one revokes the share link without informing the others; all planners can see that the link has been revoked and can generate a new one if desired."
+    - "Planner attempts to revoke a link that was already revoked (e.g., double-clicking the revoke button); the system handles idempotently without error."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"

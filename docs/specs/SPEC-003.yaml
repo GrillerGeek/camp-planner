@@ -1,0 +1,166 @@
+spec:
+  id: "SPEC-003"
+  product: "PROD-001"
+  intentions:
+    - "INT-001"
+  expectations:
+    - "EXP-003"
+  status: "draft"
+
+  context:
+    stack: "Next.js 14+ (App Router), Tailwind CSS, Supabase (PostgreSQL, Auth, Realtime), Vercel"
+    patterns: "PWA, server components with client islands, Supabase RLS, real-time subscriptions"
+    conventions:
+      - "TypeScript throughout"
+      - "App Router file-based routing (app/ directory)"
+      - "Supabase client via @supabase/ssr"
+      - "Tailwind CSS utility classes, mobile-first"
+    existing_code_refs:
+      - path: "lib/supabase/client.ts"
+        note: "Browser Supabase client from SPEC-001. Realtime subscriptions must use this client instance."
+      - path: "lib/queries/trips.ts"
+        note: "Trip query helpers from SPEC-002. Realtime hooks should complement these, not replace them — initial data is fetched server-side, then realtime takes over on the client."
+      - path: "app/dashboard/trips/[tripId]/page.tsx"
+        note: "Trip detail page from SPEC-002. This is the primary page where realtime subscriptions and presence will be integrated."
+      - path: "supabase/migrations/001_initial_schema.sql"
+        note: "Contains trips and trip_members tables. Realtime must be enabled on these tables via Supabase dashboard or migration. Do not modify the existing schema."
+    auth: "Google OAuth via Supabase Auth. Two roles: planner (full CRUD), viewer (read-only). Trip-level sharing via invite links."
+
+  expectations:
+    - id: "EXP-003"
+      description: "Multiple planners can access and edit the same trip simultaneously with changes reflected in real time across all connected clients."
+      validation: "When Planner A edits a trip field, Planner B sees the change within 3 seconds without refreshing. Concurrent edits to different fields both persist. The system indicates which planners are currently viewing or editing the trip via presence indicators."
+      edge_cases:
+        - "Two planners edit the same field at the same time — the system applies last-write-wins at the field level and shows a brief toast notification to the planner whose edit was overwritten, displaying the new value."
+        - "A planner loses network connectivity mid-edit and reconnects — pending changes are held in a local queue and replayed on reconnection. If a conflict is detected, the user is notified with the option to keep their version or accept the server version."
+        - "One planner deletes the trip while another is actively editing it — the editing planner receives an immediate redirect to the dashboard with a toast: 'This trip was deleted by another planner.'"
+        - "A large number of planners (10+) connect to the same trip simultaneously — the system must not degrade. Presence updates are throttled to every 2 seconds to limit channel traffic."
+        - "The browser tab is backgrounded for an extended period — on refocus, the client must re-sync state by fetching the latest data from the server and re-establishing the realtime subscription if it was dropped."
+
+  boundaries:
+    - "Do NOT implement feature-specific realtime (packing list sync, task sync, meal plan sync) — only the shared infrastructure, hooks, and patterns that those features will consume."
+    - "Do NOT modify the auth flow, middleware, or login/logout behavior from SPEC-001."
+    - "Do NOT modify the trip CRUD logic or form components from SPEC-002 — integrate realtime alongside them using hooks and context providers, not by rewriting them."
+    - "Do NOT add WebSocket libraries or custom socket servers — use Supabase Realtime exclusively."
+    - "Do NOT implement a full CRDT or operational transform system — last-write-wins at the row/field level is the conflict resolution strategy for this phase."
+    - "Do NOT persist presence data to the database — presence is ephemeral and managed entirely through Supabase Realtime channels."
+
+  deliverables:
+    - description: "Supabase Realtime subscription hooks and context provider"
+      details: |
+        File: lib/realtime/RealtimeProvider.tsx (client component)
+          - React context provider that wraps the trip detail layout
+          - Manages a single Supabase Realtime channel per trip: "trip:{tripId}"
+          - Provides context values: channel, connectionStatus ('connecting' | 'connected' | 'disconnected' | 'error')
+          - On mount: subscribes to the channel. On unmount: unsubscribes and removes the channel.
+          - Handles reconnection: listens for CHANNEL_ERROR and TIMED_OUT system events, attempts reconnection with exponential backoff (1s, 2s, 4s, max 30s)
+          - Exposes a `connectionStatus` value that components can use to show connectivity indicators
+
+        File: lib/realtime/useRealtimeSubscription.ts (custom hook)
+          - Generic hook for subscribing to Postgres changes on a specific table
+          - Signature: useRealtimeSubscription<T>(tableName: string, filter: string, callbacks: { onInsert?: (row: T) => void, onUpdate?: (old: T, new: T) => void, onDelete?: (old: T) => void })
+          - Uses the channel from RealtimeProvider context
+          - Subscribes to postgres_changes events with the given table and filter
+          - Returns: { status: 'subscribed' | 'pending' | 'error' }
+          - Cleans up subscription on unmount
+
+        File: lib/realtime/useRealtimeTrip.ts (custom hook)
+          - Specific hook for subscribing to changes on a single trip row
+          - Takes tripId and initialData (Trip object from server fetch)
+          - Returns: { trip: Trip, isStale: boolean }
+          - On UPDATE event: merges the new row data into local state
+          - On DELETE event: sets a `deleted` flag and triggers redirect logic
+          - `isStale` is true when the local state may be out of sync (e.g., after a reconnection before re-fetch completes)
+
+        File: app/dashboard/trips/[tripId]/layout.tsx (client component wrapper)
+          - Wraps children with <RealtimeProvider tripId={tripId}>
+          - Shows a subtle connectivity banner when connectionStatus is 'disconnected' or 'error':
+            "Connection lost — changes may not sync. Reconnecting..."
+          - Shows nothing when connected (no unnecessary UI clutter)
+
+    - description: "Presence indicators showing who is currently viewing a trip"
+      details: |
+        File: lib/realtime/usePresence.ts (custom hook)
+          - Uses the Supabase Realtime channel from RealtimeProvider context
+          - Tracks presence on the trip channel using channel.track({ user_id, display_name, avatar_url, online_at })
+          - Listens for 'presence' sync, join, and leave events
+          - Returns: { presentUsers: PresenceUser[], isTracking: boolean }
+          - PresenceUser type: { user_id: string, display_name: string, avatar_url: string | null, online_at: string }
+          - Throttles presence updates: calls channel.track() at most once every 2 seconds
+          - On component unmount: calls channel.untrack()
+
+        File: app/dashboard/trips/[tripId]/components/PresenceAvatars.tsx (client component)
+          - Consumes usePresence hook
+          - Renders a horizontal row of avatar circles for each present user
+          - Shows a green dot indicator on each avatar for "online" status
+          - If more than 5 users are present, shows "+N" overflow indicator
+          - Tooltip on hover shows the user's display name
+          - Positioned in the trip header area (right side, next to trip name)
+          - If user has no avatar_url, show initials in a colored circle (color derived from user_id hash)
+
+    - description: "Optimistic UI update utilities with conflict resolution"
+      details: |
+        File: lib/realtime/optimistic.ts
+          - Export function applyOptimisticUpdate<T>(currentState: T, pendingUpdate: Partial<T>): T
+            - Merges pendingUpdate into currentState, returning the optimistic version
+          - Export function reconcileWithServer<T>(optimisticState: T, serverState: T, pendingFields: (keyof T)[]): { resolved: T, conflicts: (keyof T)[] }
+            - Compares the server state to the optimistic state
+            - For fields NOT in pendingFields (not being edited locally), accept server values
+            - For fields in pendingFields where server value differs from the pre-edit value, flag as conflicts
+            - Returns the resolved state and the list of conflicting field names
+          - Export function createPendingQueue<T>(): PendingQueue<T>
+            - Manages a FIFO queue of pending mutations that have not yet been confirmed by the server
+            - Methods: enqueue(mutation), confirm(mutationId), reject(mutationId), getAll(), clear()
+            - Each mutation has: id (uuid), timestamp, table, rowId, fields (Partial<T>), status ('pending' | 'confirmed' | 'rejected')
+
+        File: lib/realtime/useOptimisticMutation.ts (custom hook)
+          - Wraps Supabase update calls with optimistic UI behavior
+          - Signature: useOptimisticMutation<T>(tableName: string, options: { onConflict?: (conflicts: (keyof T)[]) => void })
+          - Returns: { mutate: (rowId: string, updates: Partial<T>) => Promise<void>, pending: boolean }
+          - Flow:
+            1. Immediately apply update to local state via context
+            2. Send update to Supabase
+            3. On success: confirm the pending mutation
+            4. On failure: rollback the local state, show error toast
+            5. If a realtime event arrives for the same row while mutation is pending, use reconcileWithServer to resolve
+
+    - description: "Connection recovery and tab refocus re-sync"
+      details: |
+        File: lib/realtime/useConnectionRecovery.ts (custom hook)
+          - Listens for browser online/offline events (navigator.onLine, window 'online'/'offline' events)
+          - Listens for document visibilitychange events (tab refocus)
+          - On reconnection or tab refocus after >30 seconds hidden:
+            1. Fetch the latest trip data from the server via the existing query helper
+            2. Compare with local state and reconcile using reconcileWithServer
+            3. Re-establish the realtime subscription if the channel status is not 'joined'
+            4. Re-track presence
+          - Returns: { isRecovering: boolean, lastSyncedAt: Date }
+          - Used inside RealtimeProvider to coordinate recovery
+
+        Integration with trip detail page:
+          - The trip detail page (app/dashboard/trips/[tripId]/page.tsx) remains a server component for initial data fetch
+          - A new client component wrapper (app/dashboard/trips/[tripId]/components/TripDetailClient.tsx) receives the server-fetched data as props and:
+            - Passes it to useRealtimeTrip as initialData
+            - Renders TripHeader and ReadinessCards with the realtime-aware trip data
+            - Shows a brief "Syncing..." indicator when isRecovering is true
+            - Shows a toast when a conflict is detected: "[Field] was updated by [other planner name]"
+
+  validation:
+    automated:
+      - "npm run build completes without errors after all changes"
+      - "TypeScript strict mode passes with no type errors across all new files"
+      - "RealtimeProvider mounts without errors and establishes a channel subscription"
+      - "usePresence correctly tracks and untracks the current user on mount/unmount"
+      - "useRealtimeSubscription receives INSERT, UPDATE, and DELETE events for the subscribed table"
+      - "applyOptimisticUpdate correctly merges partial updates into existing state"
+      - "reconcileWithServer correctly identifies conflicting fields and resolves non-conflicting ones"
+      - "createPendingQueue enqueue/confirm/reject operations maintain correct queue state"
+      - "useConnectionRecovery triggers re-fetch on tab refocus after extended hidden period"
+    human_review:
+      - "Open the same trip in two browser tabs — edit the trip name in Tab A and verify it appears in Tab B within 3 seconds"
+      - "Presence avatars appear in the trip header when a second user views the same trip"
+      - "Disconnect network (airplane mode) while viewing a trip — the connectivity banner appears"
+      - "Reconnect network — the connectivity banner disappears and data re-syncs"
+      - "Delete a trip in Tab A — Tab B redirects to the dashboard with a notification"
+      - "Background a tab for 60 seconds, make changes in another tab, then refocus — changes appear with a brief 'Syncing...' indicator"
+      - "Mobile (375px): presence avatars do not overflow or break the trip header layout"

@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-022"
+  intention: "INT-006"
+  description: "Reusable task templates for common prep activities allow users to quickly populate a trip's task list from predefined checklists (e.g., 'pre-trip checklist', 'campsite setup', 'departure cleanup')."
+  validation_criteria: "Given at least one saved task template, when a user applies that template to a trip, then all tasks defined in the template are created in the trip's task list with their predefined titles, descriptions, and relative due dates. The original template remains unchanged and available for future use."
+  edge_cases:
+    - "Template is applied to a trip that already has tasks -- new tasks from the template should be added alongside existing tasks, not replace them."
+    - "Template is deleted while a trip is using tasks that were created from it -- the already-created tasks should remain unaffected since they are independent copies."
+    - "Template contains a task assigned to a role (e.g., 'driver') that does not map to any current trip participant -- the task should be created as unassigned with a note or prompt to assign it."
+    - "User modifies tasks after applying a template, then applies the same template again -- system should either warn about duplicates or create new copies, not silently overwrite the modified tasks."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"

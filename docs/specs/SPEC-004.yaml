@@ -1,0 +1,193 @@
+spec:
+  id: "SPEC-004"
+  name: "Smart Packing Lists"
+  product: "PROD-001"
+  status: "draft"
+  owner: "Jason Robey"
+  created: "2026-03-27"
+
+  context:
+    intentions:
+      - "INT-002"
+    expectations:
+      - "EXP-004"
+      - "EXP-005"
+      - "EXP-006"
+      - "EXP-007"
+    dependencies:
+      - id: "SPEC-001"
+        reason: "Authentication and user identity required for RLS policies and ownership of templates and packing lists."
+      - id: "SPEC-002"
+        reason: "Trip CRUD provides the trip entity (dates, type, participants) that packing lists attach to and that template matching relies on."
+      - id: "SPEC-003"
+        reason: "Realtime infrastructure (Supabase Realtime subscriptions) required for live check-off sync between planners."
+    stack:
+      runtime: "Next.js 14+ (App Router), TypeScript"
+      styling: "Tailwind CSS utility classes, mobile-first responsive design"
+      backend: "Supabase (PostgreSQL, Auth, Realtime, Row Level Security)"
+      hosting: "Vercel"
+      patterns:
+        - "PWA (Progressive Web App)"
+        - "Server components with client islands"
+        - "Supabase client via @supabase/ssr for server/client components"
+        - "App Router file-based routing (app/ directory)"
+        - "Supabase Realtime subscriptions for collaborative check-off sync"
+
+  expectations:
+    - id: "EXP-004"
+      summary: "Users can create reusable packing list templates with items organized into categories (e.g., shelter, cooking, clothing, safety, personal)."
+      validation_criteria: >
+        A template can be created with a name, one or more categories, and items within each
+        category. Templates are saved and appear in the user's template library. Templates can
+        be edited (add/remove/reorder items and categories) and deleted. Duplicate template names
+        for the same user are either prevented or disambiguated.
+      edge_cases:
+        - "Empty category (no items) must be handled gracefully in display or prevented at save time."
+        - "Deleting a template referenced by an active trip's packing list must leave the trip's list intact as an independent copy."
+        - "Items with identical names in the same category must be prevented or clearly differentiated."
+
+    - id: "EXP-005"
+      summary: "When a user creates a packing list for a trip, the system auto-populates it from matching templates based on trip season (derived from dates) and trip type."
+      validation_criteria: >
+        Given a trip with dates in December and type 'winter camping', the generated list includes
+        winter-specific items that would not appear for a summer trip. The user can review, modify,
+        and confirm the auto-populated list before finalizing. Items from multiple applicable
+        templates are merged without duplicates.
+      edge_cases:
+        - "Trip spans two seasons (e.g., late September to early October) -- use the more conservative/inclusive set or let the user pick."
+        - "No templates match the trip's season and type -- fall back to a generic default list or prompt the user to select a template manually."
+        - "User has not created any templates -- offer built-in defaults or clearly indicate templates need to be created first."
+        - "Trip type is not set -- prompt the user or use a reasonable default rather than failing silently."
+
+    - id: "EXP-006"
+      summary: "Users can check off packed items on a trip's packing list, with check/uncheck state syncing in real time across all planners viewing the same trip."
+      validation_criteria: >
+        When Planner A checks off an item, Planner B sees it checked within 3 seconds without
+        refreshing. Packing progress count updates immediately on both clients. Checked state
+        persists across sessions. Unchecking also syncs in real time.
+      edge_cases:
+        - "Two planners check the same item simultaneously -- both should see it as checked with no conflict or toggle-back."
+        - "A planner checks items while offline -- changes queue and sync when connectivity restores without overwriting others' changes."
+        - "Packing list is modified (item added/removed) while another planner is checking items -- the view updates to reflect structural changes without losing in-progress check states."
+
+    - id: "EXP-007"
+      summary: "Packing list items can be assigned to specific trip participants, indicating who is responsible for bringing each item."
+      validation_criteria: >
+        Each item can be assigned to one or more participants. Assignment is visible to all planners.
+        Filtering the list by participant shows only their assigned items. Unassigned items are clearly
+        distinguishable. Assignment changes sync in real time.
+      edge_cases:
+        - "A participant is removed from the trip after items are assigned to them -- reassign their items to 'unassigned' or prompt redistribution."
+        - "An item is assigned to a participant who has not yet accepted the trip invitation -- handle the pending state without errors."
+        - "A participant's identity changes (name change, account merge) -- assignments must follow the identity, not a stale name string."
+
+  boundaries:
+    in_scope:
+      - "Supabase tables: packing_templates, packing_template_items, trip_packing_lists, trip_packing_items"
+      - "Template management UI: create, edit, delete templates with categorized items"
+      - "Tag templates with seasons (spring, summer, fall, winter) and trip types (car camping, backpacking, winter camping, etc.)"
+      - "Trip packing list page that auto-populates from matching templates based on trip dates and type"
+      - "Check-off UI with realtime sync using SPEC-003 Supabase Realtime infrastructure"
+      - "Item assignment to trip participants (one or more participants per item)"
+      - "Filter packing list by participant"
+      - "Packing progress indicator (checked / total items)"
+      - "RLS policies: planners get full CRUD on templates and packing lists for their trips; viewers get read-only access to trip packing lists"
+    out_of_scope:
+      - "Do not modify trip CRUD or auth flows (owned by SPEC-001 and SPEC-002)."
+      - "Do not implement meal planning or grocery features (SPEC-005 and SPEC-006)."
+      - "Do not implement the guest sharing link system (future spec)."
+      - "Do not implement photo uploads or image attachments for packing items."
+      - "Do not build a public/community template marketplace."
+
+  deliverables:
+    database:
+      - name: "packing_templates"
+        description: >
+          Stores reusable packing list templates owned by a user. Fields: id (uuid PK),
+          user_id (uuid FK to auth.users), name (text, unique per user), description (text, nullable),
+          seasons (text[] -- e.g., ['summer', 'winter']), trip_types (text[] -- e.g., ['car_camping', 'backpacking']),
+          created_at (timestamptz), updated_at (timestamptz).
+      - name: "packing_template_items"
+        description: >
+          Items within a template, organized by category. Fields: id (uuid PK),
+          template_id (uuid FK to packing_templates ON DELETE CASCADE), name (text),
+          category (text -- e.g., 'shelter', 'cooking', 'clothing'), sort_order (integer),
+          created_at (timestamptz). Unique constraint on (template_id, category, name).
+      - name: "trip_packing_lists"
+        description: >
+          A packing list instance for a specific trip. Fields: id (uuid PK),
+          trip_id (uuid FK to trips ON DELETE CASCADE), created_from_templates (uuid[] -- template IDs used to seed),
+          created_at (timestamptz), updated_at (timestamptz). One packing list per trip (unique on trip_id).
+      - name: "trip_packing_items"
+        description: >
+          Individual items on a trip's packing list. Fields: id (uuid PK),
+          packing_list_id (uuid FK to trip_packing_lists ON DELETE CASCADE), name (text),
+          category (text), is_checked (boolean, default false), checked_by (uuid FK to auth.users, nullable),
+          checked_at (timestamptz, nullable), assigned_to (uuid[] -- participant user IDs),
+          sort_order (integer), created_at (timestamptz), updated_at (timestamptz).
+
+    rls_policies:
+      - table: "packing_templates"
+        policies:
+          - "SELECT, INSERT, UPDATE, DELETE: user_id = auth.uid()"
+      - table: "packing_template_items"
+        policies:
+          - "SELECT, INSERT, UPDATE, DELETE: template's user_id = auth.uid() (via join to packing_templates)"
+      - table: "trip_packing_lists"
+        policies:
+          - "SELECT: user is a participant (planner or viewer) on the trip"
+          - "INSERT, UPDATE, DELETE: user is a planner on the trip"
+      - table: "trip_packing_items"
+        policies:
+          - "SELECT: user is a participant (planner or viewer) on the trip (via join to trip_packing_lists -> trips)"
+          - "INSERT, UPDATE, DELETE: user is a planner on the trip"
+          - "UPDATE (is_checked, checked_by, checked_at only): user is a planner on the trip"
+
+    ui_components:
+      - name: "Template Library Page"
+        route: "/templates"
+        description: >
+          Lists all of the user's packing templates with search/filter by name, season, and trip type.
+          Actions: create new, edit, delete. Each template card shows name, season/type tags, and item count.
+      - name: "Template Editor"
+        route: "/templates/[id]/edit"
+        description: >
+          Form to create or edit a template. Supports adding/removing/reordering categories and items
+          within categories. Tag the template with applicable seasons and trip types. Validates
+          unique item names within a category and non-empty template name.
+      - name: "Trip Packing List Page"
+        route: "/trips/[tripId]/packing"
+        description: >
+          Displays the trip's packing list grouped by category. Shows check-off toggle per item with
+          realtime sync. Displays packing progress (e.g., '14/32 items packed'). Supports filtering
+          by participant and by checked/unchecked status. Auto-populate button triggers template
+          matching if the list is empty.
+      - name: "Item Assignment UI"
+        description: >
+          Inline assignment control on each packing item allowing selection of one or more trip
+          participants. Shows avatar/initials badges for assigned participants. Supports bulk
+          assignment of a category to a participant.
+
+    realtime:
+      - "Subscribe to trip_packing_items changes (INSERT, UPDATE, DELETE) filtered by packing_list_id using Supabase Realtime."
+      - "Optimistic UI updates for check-off toggles with server reconciliation."
+      - "Handle concurrent check-off of the same item by treating any check as a check (last-write-wins with idempotent true)."
+
+  validation:
+    manual_tests:
+      - "Create a template with 3 categories and 5+ items each. Verify it saves, appears in library, and can be edited and deleted."
+      - "Create a trip with dates in December and type 'winter camping'. Generate a packing list and verify winter-specific items appear from matching templates."
+      - "Open the same trip packing list on two browser sessions (simulating two planners). Check off an item on one session and verify it appears checked on the other within 3 seconds."
+      - "Assign items to different participants. Filter by one participant and verify only their items show."
+      - "Delete a template that was used to seed an active trip's packing list. Verify the trip's list remains intact."
+      - "Create a trip with no matching templates. Verify the system handles this gracefully (fallback or prompt)."
+    automated_tests:
+      - "Unit tests for template matching logic (season derivation from dates, multi-template merge, deduplication)."
+      - "Unit tests for RLS policies: verify planners can CRUD, viewers can only read, and non-participants are blocked."
+      - "Integration test: create template -> create trip -> generate packing list -> verify items match expected output."
+    acceptance_criteria:
+      - "All four expectations (EXP-004 through EXP-007) pass their validation criteria."
+      - "Realtime check-off sync works reliably under normal network conditions (< 3 second latency)."
+      - "RLS policies enforce planner/viewer access correctly -- no unauthorized data access."
+      - "Template deletion does not break existing trip packing lists."
+      - "Mobile-first responsive design: packing list is usable on phone screens."

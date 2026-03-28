@@ -1,0 +1,277 @@
+spec:
+  id: "SPEC-008"
+  name: "Reservations, Trip History & Memories"
+  product: "PROD-001"
+  status: "draft"
+  owner: "Jason Robey"
+  created: "2026-03-27"
+
+  context:
+    description: >
+      Implements reservation management for campsite bookings, trip completion
+      workflow, journal entries with photo uploads, and a searchable past trips
+      browser. Reservation details are cached for offline access via the PWA
+      service worker. Trip history data is structured to support future AI-powered
+      suggestions (handled by SPEC-005), but this spec does not implement AI
+      features itself.
+    product: "PROD-001"
+    intentions:
+      - id: "INT-007"
+        statement: >
+          Users can store and manage campsite reservation details -- booking
+          confirmations, dates, check-in/out times, site numbers, costs, and
+          contact info -- in one place tied to the trip.
+      - id: "INT-008"
+        statement: >
+          Users can log memories, notes, and highlights from completed trips,
+          building a trip history that informs future planning and preserves
+          the experience.
+    dependencies:
+      - spec: "SPEC-001"
+        reason: "Google OAuth authentication and planner/viewer role enforcement via Supabase Auth"
+      - spec: "SPEC-002"
+        reason: "Trip CRUD, trip status management, and trip data model"
+    stack:
+      runtime: "Next.js 14+ (App Router), TypeScript"
+      styling: "Tailwind CSS (utility classes, no CSS modules)"
+      database: "Supabase PostgreSQL with Row Level Security"
+      auth: "Google OAuth via Supabase Auth (planner / viewer roles)"
+      storage: "Supabase Storage (journal photo uploads)"
+      hosting: "Vercel"
+      patterns:
+        - "PWA (Progressive Web App) with service worker caching for offline reservation access"
+        - "Server components with client islands"
+        - "Supabase client via @supabase/ssr for server/client components"
+        - "Mobile-first responsive design"
+        - "App Router file-based routing (app/ directory)"
+
+  expectations:
+    - id: "EXP-023"
+      intention: "INT-007"
+      description: >
+        Users can add reservation details including campground name, site number,
+        confirmation number, dates, check-in/out times, cost, contact info, and
+        notes to a trip.
+      validation_criteria: >
+        A user can create a reservation record linked to a trip, populate all
+        supported fields (campground name, site number, confirmation number,
+        check-in date, check-out date, check-in time, check-out time, cost,
+        contact info, notes), save successfully, and retrieve the complete record
+        with all fields intact.
+      edge_cases:
+        - "User submits a reservation with only the required fields (campground name and dates) and all optional fields left blank; the record saves without error and displays gracefully with empty optional fields."
+        - "Confirmation number contains special characters, dashes, or mixed alphanumeric formats (e.g., 'RES-2026/04#7734'); the value is stored and displayed exactly as entered."
+        - "Cost field receives zero, negative values, or non-numeric input; validation rejects invalid entries and accepts zero as a legitimate value (e.g., free campsite)."
+        - "User pastes an extremely long note (10,000+ characters) into the notes field; the system either stores it fully or enforces a clearly communicated character limit."
+
+    - id: "EXP-024"
+      intention: "INT-007"
+      description: >
+        Multiple reservations per trip are supported to accommodate multi-stop
+        trips or booking multiple adjacent sites.
+      validation_criteria: >
+        A user can add two or more reservation records to a single trip, each
+        with independent campground names, dates, and details. All reservations
+        are listed under the trip, individually editable, individually deletable,
+        and display in chronological order by check-in date.
+      edge_cases:
+        - "Two reservations on the same trip have overlapping date ranges (e.g., two sites at the same campground for the same weekend); the system allows this without error since booking multiple sites simultaneously is a valid use case."
+        - "A user adds 20+ reservations to a single trip; the UI remains performant, scrollable, and all reservations are accessible without data loss."
+        - "A user deletes a reservation from the middle of a multi-reservation trip; remaining reservations retain their data and ordering without corruption."
+        - "Two users with edit access add reservations to the same trip concurrently; both reservations are saved without one overwriting the other."
+
+    - id: "EXP-025"
+      intention: "INT-007"
+      description: >
+        Reservation details are accessible offline via PWA caching so users can
+        reference them at the campsite without cell service.
+      validation_criteria: >
+        After a user views a trip's reservations while online, they can switch to
+        airplane mode (or lose connectivity), reopen the app, and still see all
+        reservation fields -- campground name, site number, confirmation number,
+        dates, times, cost, contact info, and notes -- without any missing data
+        or error screens.
+      edge_cases:
+        - "User has never opened a specific trip's reservations while online, then goes offline; the app shows a clear message that the data has not been cached rather than displaying a blank or broken page."
+        - "User edits a reservation while offline; changes are queued locally and synced when connectivity returns, with conflict resolution if the record was also modified by another user online."
+        - "PWA cache storage is nearly full on the device; the app degrades gracefully, prioritizing the most recent or upcoming trip's reservation data and notifying the user if older trips cannot be cached."
+        - "User clears browser cache or storage while offline; the app communicates that cached data has been lost and prompts re-sync when back online."
+
+    - id: "EXP-026"
+      intention: "INT-008"
+      description: >
+        Users can mark a trip as 'completed' and add journal entries with text and
+        photos to record memories.
+      validation_criteria: >
+        A user can change a trip's status to 'completed,' then create one or more
+        journal entries containing free-text content and attached photos. Entries
+        are persisted, display in chronological order, and photos render correctly
+        when the trip is viewed later.
+      edge_cases:
+        - "User marks a trip as completed before the trip's end date has passed; the system either allows it (user knows best) or warns but does not block the action."
+        - "User uploads a photo in an uncommon format (HEIC, WebP, TIFF) or an image exceeding 20 MB; the system converts or rejects with a clear error, and does not silently drop the upload."
+        - "User attempts to add a journal entry to a trip that has not been marked as completed; the system either prompts them to mark it completed first or allows entries on active trips as well."
+        - "User reverts a trip from 'completed' back to 'active'; existing journal entries and photos are preserved and remain accessible."
+
+    - id: "EXP-027"
+      intention: "INT-008"
+      description: >
+        Past trips are browsable and searchable by destination, date range, or
+        keyword across trip names, notes, and journal entries.
+      validation_criteria: >
+        A user with multiple completed trips can browse a chronological list of
+        past trips, search by campground or destination name, filter by date
+        range, and search by keyword. Results accurately match the query and
+        return within 2 seconds.
+      edge_cases:
+        - "User has zero completed trips and accesses the trip history view; the system shows a meaningful empty state (e.g., 'No past trips yet') rather than a blank page or error."
+        - "User searches for a keyword that appears only inside a journal entry's text (not in the trip name or destination); the search still surfaces that trip in the results."
+        - "User searches with special characters or Unicode (e.g., accented campground names like 'Lac-Superieur'); results match correctly without encoding errors."
+        - "User has 500+ completed trips spanning several years; pagination or infinite scroll keeps the list performant and the search returns results without timeout."
+
+    - id: "EXP-028"
+      intention: "INT-008"
+      description: >
+        Trip history data informs AI-powered meal suggestions and packing
+        recommendations for future trips, learning from what worked and what
+        was missing.
+      validation_criteria: >
+        When planning a new trip, the AI recommendation engine references data
+        from past completed trips -- including journal notes, packing lists, meal
+        plans, and any 'forgot to bring' or 'favorite meal' annotations -- to
+        generate contextually relevant suggestions. Suggestions visibly differ
+        from a user with no trip history versus one with extensive history.
+      edge_cases:
+        - "User has only one past trip with minimal data (no journal entries, sparse packing list); the AI still generates reasonable baseline suggestions and does not error or produce empty recommendations."
+        - "Past trip data contains contradictory signals (e.g., user noted 'brought too much food' on one trip and 'ran out of food' on another); the AI weighs recency or trip similarity rather than producing nonsensical averages."
+        - "User deletes a past trip; AI recommendations update to exclude that trip's data and do not reference deleted content."
+        - "User has trip history but plans a trip to a drastically different environment (e.g., past trips were summer car-camping, new trip is winter backcountry); the AI adapts recommendations to the new context rather than blindly repeating past trip patterns."
+      note: >
+        This expectation is included for completeness. The AI recommendation
+        logic itself is handled at the SPEC-005 query level. This spec ensures
+        the data model and history storage are structured to support those queries.
+
+  boundaries:
+    in_scope:
+      - "Supabase tables: trip_reservations, trip_journal_entries"
+      - "Reservation management UI per trip: add, edit, delete reservations with all fields (campground, site number, confirmation number, dates, check-in/out times, cost, contact, notes)"
+      - "Support for multiple reservations per trip, displayed chronologically"
+      - "Trip completion flow: mark trip as completed, transition to history view"
+      - "Journal entry UI: add text entries and photo uploads to completed trips"
+      - "Past trips browser with search by destination, date range, and keyword"
+      - "Supabase Storage bucket for journal photos"
+      - "PWA service worker caching for reservation details (offline access)"
+      - "Row Level Security policies for all new tables and storage bucket"
+    out_of_scope:
+      - "Do not implement AI features in this spec -- AI history-based suggestions are handled at the SPEC-005 query level"
+      - "Do not modify packing lists, meal plans, grocery features, or task management"
+      - "Photo storage must use Supabase Storage, not external services (S3, Cloudinary, etc.)"
+      - "Do not implement social sharing of journal entries or public trip pages"
+      - "Do not implement video uploads -- photos and text only"
+      - "Do not modify existing SPEC-001 or SPEC-002 deliverables beyond adding the 'completed' trip status"
+
+  deliverables:
+    database:
+      - name: "trip_reservations"
+        type: "supabase_table"
+        description: >
+          Stores campsite reservation records linked to a trip. Columns include:
+          id (uuid, PK), trip_id (FK to trips), campground_name (text, required),
+          site_number (text, nullable), confirmation_number (text, nullable),
+          check_in_date (date, required), check_out_date (date, required),
+          check_in_time (time, nullable), check_out_time (time, nullable),
+          cost (numeric(10,2), nullable, >= 0), contact_info (text, nullable),
+          notes (text, nullable), created_by (uuid), created_at (timestamptz),
+          updated_at (timestamptz).
+      - name: "trip_journal_entries"
+        type: "supabase_table"
+        description: >
+          Stores journal entries for completed trips. Columns include: id (uuid, PK),
+          trip_id (FK to trips), content (text, required), photo_urls (text[] or jsonb,
+          nullable -- array of Supabase Storage paths), created_by (uuid), created_at
+          (timestamptz), updated_at (timestamptz).
+
+    storage:
+      - name: "journal-photos"
+        type: "supabase_storage_bucket"
+        description: >
+          Supabase Storage bucket for journal entry photo uploads. Organized by
+          trip_id/entry_id/ path structure. Accepts JPEG, PNG, WebP, and HEIC
+          formats. Maximum file size enforced (e.g., 10 MB per photo). Storage
+          policies restrict upload to trip planners and read access to trip
+          participants.
+
+    ui:
+      - name: "Reservation management UI"
+        description: >
+          Per-trip reservation section with a list of all reservations sorted by
+          check-in date. Each reservation is displayed as a card or row showing
+          key details (campground, dates, site number, confirmation number).
+          Expand/click to see full details. Add/edit forms include all fields:
+          campground name (required), site number, confirmation number, check-in
+          date (required), check-out date (required), check-in time, check-out
+          time, cost (numeric, >= 0), contact info, and notes. Delete with
+          confirmation dialog.
+      - name: "Trip completion flow"
+        description: >
+          Action button or menu item on an active trip to mark it as 'completed.'
+          Triggers a confirmation prompt. After completion, the trip transitions
+          to a history/read-focused view with the journal section visible. Allow
+          reverting to active status.
+      - name: "Journal entry UI"
+        description: >
+          Section on the completed trip view for adding journal entries. Each
+          entry has a text area for free-form content and a photo upload control
+          (multi-file, drag-and-drop or file picker). Entries display in
+          chronological order with photos rendered inline. Edit and delete
+          existing entries.
+      - name: "Past trips browser"
+        description: >
+          Dedicated view listing all completed trips in reverse chronological
+          order. Search bar supporting keyword search across trip name,
+          destination, notes, and journal entry content. Date range filter.
+          Destination filter. Results display trip name, destination, dates,
+          and a snippet of the most recent journal entry. Pagination or infinite
+          scroll for large histories. Empty state for users with no past trips.
+
+    pwa:
+      - name: "Reservation offline caching"
+        description: >
+          PWA service worker intercepts and caches reservation API responses
+          when the user views a trip's reservations while online. On subsequent
+          offline access, the service worker serves cached reservation data.
+          Cache-first strategy for reservation detail pages. Clear messaging
+          when data has not been cached or cache is unavailable. Stale data
+          indicator when the user comes back online and cached data may be
+          outdated.
+
+    security:
+      - name: "trip_reservations RLS policies"
+        description: >
+          SELECT: Authenticated users who are participants of the trip (planner or viewer role).
+          INSERT/UPDATE/DELETE: Only users with planner role on the trip.
+      - name: "trip_journal_entries RLS policies"
+        description: >
+          SELECT: Authenticated users who are participants of the trip (planner or viewer role).
+          INSERT/UPDATE/DELETE: Only users with planner role on the trip.
+      - name: "journal-photos storage policies"
+        description: >
+          Upload (INSERT): Only planners on the associated trip.
+          Read (SELECT): Trip participants (planner or viewer role).
+          Delete: Only the uploader or trip planners.
+
+  validation:
+    - expectation: "EXP-023"
+      criteria: "Create a reservation with all fields populated; verify all values persist and display. Create with only required fields (campground name, dates); verify graceful handling of empty optional fields. Enter special characters in confirmation number; verify exact storage and display. Enter zero as cost; verify accepted. Enter negative cost; verify rejected."
+    - expectation: "EXP-024"
+      criteria: "Add 3+ reservations to a single trip; verify all listed chronologically by check-in date. Add overlapping date reservations; verify no error. Delete a middle reservation; verify remaining are intact. Test concurrent reservation creation by two planners; verify both saved."
+    - expectation: "EXP-025"
+      criteria: "View a trip's reservations while online. Switch to airplane mode. Reopen the app and navigate to the same trip's reservations; verify all fields display from cache. Access a trip never viewed online while offline; verify clear 'not cached' message. Return online; verify fresh data loads."
+    - expectation: "EXP-026"
+      criteria: "Mark a trip as completed; verify status change persists. Create a journal entry with text; verify it displays. Create a journal entry with photos (JPEG, PNG, WebP); verify upload and rendering. Attempt journal entry on an active trip; verify appropriate behavior. Revert trip to active; verify journal entries preserved."
+    - expectation: "EXP-027"
+      criteria: "With 5+ completed trips, browse the history view; verify reverse-chronological ordering. Search by destination name; verify match. Search by keyword found only in a journal entry; verify the trip surfaces. Filter by date range; verify correct results. Access with zero completed trips; verify empty state."
+    - expectation: "EXP-028"
+      criteria: "Verify trip_journal_entries and trip history data are queryable by SPEC-005 AI layer. Verify deleting a past trip removes its data from query results. Structural validation only -- AI behavior is tested in SPEC-005."
+    - criteria: "Verify RLS by attempting reservation and journal CRUD as an unauthenticated user, a non-participant, a viewer (read-only), and a planner (full CRUD). Verify storage bucket policies restrict uploads to planners."
+    - criteria: "Verify journal photo uploads enforce size limits and accepted formats. Verify photos render correctly after upload."

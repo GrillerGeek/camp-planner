@@ -1,0 +1,189 @@
+spec:
+  id: "SPEC-001"
+  product: "PROD-001"
+  intentions:
+    - "INT-001"
+  expectations:
+    - "EXP-003 (partial — auth and realtime infrastructure only)"
+  status: "draft"
+
+  context:
+    stack: "Next.js 14+ (App Router), Tailwind CSS, Supabase (PostgreSQL, Auth, Realtime), Vercel"
+    patterns: "PWA, server components with client islands, Supabase RLS, real-time subscriptions"
+    conventions:
+      - "TypeScript throughout"
+      - "App Router file-based routing (app/ directory)"
+      - "Supabase client via @supabase/ssr"
+      - "Tailwind CSS utility classes, mobile-first"
+    existing_code_refs:
+      - path: "N/A — greenfield project"
+        note: "No existing code. Follow Next.js 14 App Router conventions with app/ directory structure. Use create-next-app with TypeScript and Tailwind presets as the starting point."
+    auth: "Google OAuth via Supabase Auth. Two roles: planner (full CRUD), viewer (read-only). Trip-level sharing via invite links."
+
+  expectations:
+    - id: "EXP-003"
+      description: "Multiple planners can access and edit the same trip simultaneously with changes reflected in real time across all connected clients. This spec addresses the foundational auth and database infrastructure required to support that — not the realtime sync itself."
+      validation: "Google OAuth login completes successfully and creates a user record in the profiles table. Authenticated users can reach the dashboard shell. Unauthenticated users are redirected to login. RLS policies on all tables enforce that only trip members can read or write trip data. Planner role has full CRUD; viewer role has read-only access."
+      edge_cases:
+        - "User revokes Google OAuth consent externally — next app visit must handle the expired/revoked token gracefully and redirect to re-authenticate."
+        - "Two users sign up with the same Google account at the same time — the profiles upsert must be idempotent, not create duplicates."
+        - "A user with no trip memberships logs in — they must see an empty dashboard with a clear call to action, not an error."
+
+  boundaries:
+    - "Do NOT implement any feature UI beyond the auth flow (login/logout) and an empty dashboard shell page."
+    - "Do NOT create database tables for packing lists, meals, tasks, reservations, inventory, or any feature beyond users, trips, and trip_members."
+    - "Do NOT implement trip CRUD UI or API routes — only the database schema and RLS policies for trips and trip_members."
+    - "Do NOT implement Supabase Realtime subscriptions or presence — that is covered by SPEC-003."
+    - "Do NOT add third-party component libraries (e.g., shadcn/ui, Radix). Use Tailwind utility classes directly."
+    - "Do NOT configure CI/CD pipelines or deployment — Vercel auto-deploy from Git is sufficient for now."
+
+  deliverables:
+    - description: "Next.js 14+ project scaffolding with App Router, TypeScript, and Tailwind CSS"
+      details: |
+        Initialize via create-next-app@latest with the following options:
+        - TypeScript: yes
+        - Tailwind CSS: yes
+        - ESLint: yes
+        - App Router: yes
+        - src/ directory: no (use app/ at root)
+
+        Directory structure:
+          app/
+            layout.tsx          — root layout with <html>, <body>, metadata, Supabase provider
+            page.tsx            — landing/login page
+            dashboard/
+              layout.tsx        — authenticated layout wrapper (redirects if not logged in)
+              page.tsx          — empty dashboard shell with placeholder text
+            auth/
+              callback/
+                route.ts        — Supabase OAuth callback handler
+            login/
+              page.tsx          — Google OAuth login button
+          lib/
+            supabase/
+              client.ts         — browser Supabase client via createBrowserClient
+              server.ts         — server Supabase client via createServerClient
+              middleware.ts     — session refresh logic for middleware
+          middleware.ts          — Next.js middleware for session refresh
+          public/
+            manifest.json       — PWA manifest
+            icons/              — PWA icons (192x192, 512x512 placeholders)
+          tailwind.config.ts    — Tailwind config with camp-planner theme colors
+          next.config.js        — Next.js config with PWA headers
+
+    - description: "Supabase database schema: profiles, trips, and trip_members tables with RLS policies"
+      details: |
+        Install @supabase/supabase-js and @supabase/ssr.
+
+        Create a SQL migration file at supabase/migrations/001_initial_schema.sql:
+
+        Table: profiles
+          - id: uuid, primary key, references auth.users(id) on delete cascade
+          - email: text, not null
+          - display_name: text
+          - avatar_url: text
+          - created_at: timestamptz, default now()
+          - updated_at: timestamptz, default now()
+
+        Table: trips
+          - id: uuid, primary key, default gen_random_uuid()
+          - name: text, not null, check (char_length(name) between 1 and 200)
+          - destination: text, not null
+          - start_date: date, not null
+          - end_date: date, not null, check (end_date >= start_date)
+          - campsite_info: text
+          - notes: text
+          - created_by: uuid, not null, references profiles(id)
+          - created_at: timestamptz, default now()
+          - updated_at: timestamptz, default now()
+
+        Table: trip_members
+          - id: uuid, primary key, default gen_random_uuid()
+          - trip_id: uuid, not null, references trips(id) on delete cascade
+          - user_id: uuid, not null, references profiles(id) on delete cascade
+          - role: text, not null, check (role in ('planner', 'viewer')), default 'viewer'
+          - joined_at: timestamptz, default now()
+          - unique constraint on (trip_id, user_id)
+
+        RLS policies (enable RLS on all three tables):
+          profiles:
+            - SELECT: authenticated users can read any profile (for displaying member names)
+            - INSERT: users can insert their own profile (id = auth.uid())
+            - UPDATE: users can update their own profile (id = auth.uid())
+          trips:
+            - SELECT: user must be a member of the trip (exists in trip_members where user_id = auth.uid())
+            - INSERT: any authenticated user can create a trip
+            - UPDATE: only planners can update (trip_members.role = 'planner' and user_id = auth.uid())
+            - DELETE: only the trip creator can delete (created_by = auth.uid())
+          trip_members:
+            - SELECT: user must be a member of the same trip
+            - INSERT: only planners of the trip can add members
+            - UPDATE: only planners of the trip can change roles
+            - DELETE: only planners can remove members (but cannot remove the creator)
+
+        Create a database trigger: on auth.users insert, auto-create a profiles row.
+        Create an updated_at trigger function that sets updated_at = now() on UPDATE for profiles and trips.
+
+    - description: "Google OAuth configuration and auth flow with middleware-based session management"
+      details: |
+        Configure Supabase Auth for Google OAuth provider.
+
+        Environment variables (in .env.local, added to .gitignore):
+          NEXT_PUBLIC_SUPABASE_URL=<project-url>
+          NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
+
+        Auth flow:
+          1. User clicks "Sign in with Google" on app/login/page.tsx
+          2. Call supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: '/auth/callback' } })
+          3. app/auth/callback/route.ts exchanges the code for a session
+          4. Redirect to /dashboard on success, /login?error=auth on failure
+
+        middleware.ts:
+          - Runs on all routes except static assets and API routes
+          - Refreshes the Supabase session on each request
+          - Redirects unauthenticated users away from /dashboard/* to /login
+          - Redirects authenticated users away from /login to /dashboard
+
+        Logout:
+          - Dashboard layout includes a sign-out button
+          - Calls supabase.auth.signOut() and redirects to /login
+
+    - description: "PWA manifest and Tailwind theme configuration"
+      details: |
+        public/manifest.json:
+          - name: "Camp Planner"
+          - short_name: "CampPlan"
+          - start_url: "/"
+          - display: "standalone"
+          - background_color: "#1a1a2e"
+          - theme_color: "#16a34a"
+          - icons: 192x192 and 512x512 PNG placeholders
+
+        tailwind.config.ts extended theme:
+          colors:
+            camp:
+              forest: "#16a34a"
+              pine: "#15803d"
+              earth: "#78716c"
+              sky: "#0ea5e9"
+              fire: "#ea580c"
+              night: "#1a1a2e"
+              sand: "#fef3c7"
+
+        Add <link rel="manifest" href="/manifest.json"> and theme-color meta tag to app/layout.tsx.
+
+  validation:
+    automated:
+      - "npm run build completes without errors"
+      - "TypeScript strict mode passes with no type errors"
+      - "ESLint passes with no errors"
+      - "Navigating to /dashboard while unauthenticated redirects to /login"
+      - "After Google OAuth login, user is redirected to /dashboard and a profiles row exists"
+      - "RLS policies: an authenticated user cannot SELECT a trip they are not a member of"
+      - "RLS policies: a viewer-role member cannot UPDATE or DELETE a trip"
+      - "The profiles trigger creates a row on new auth.users signup"
+    human_review:
+      - "Login page renders correctly on mobile (375px width) and desktop (1280px width)"
+      - "PWA manifest is detected by browser dev tools (Application tab)"
+      - "Dashboard shell page loads and shows placeholder content after login"
+      - "Sign-out button works and returns user to login page"

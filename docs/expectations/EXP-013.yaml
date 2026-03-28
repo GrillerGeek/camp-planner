@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-013"
+  intention: "INT-004"
+  description: "Grocery list subtracts items already in camper inventory so users do not purchase duplicates. When generating or refreshing the grocery list, the system compares required ingredients against current inventory and reduces or removes line items accordingly."
+  validation_criteria: "Given a meal plan requiring 3 lbs of rice and a camper inventory containing 2 lbs of rice, when the grocery list is generated, then the grocery list shows 1 lb of rice needed. If inventory fully covers the ingredient, that item does not appear on the grocery list."
+  edge_cases:
+    - "Inventory item exists but is past its expiration date -- system should not subtract expired items and should still list the full quantity needed."
+    - "Inventory quantity exceeds the required amount -- item should be omitted from the grocery list entirely, not shown with a negative quantity."
+    - "Inventory is updated (items consumed or added) after the grocery list was generated -- the grocery list should reflect the updated inventory when next viewed or refreshed."
+    - "Inventory item and recipe ingredient use different units (e.g., inventory in grams, recipe in ounces) -- system must convert units before subtracting."
+  complexity: "high"
+  owner: "Jason Robey"
+  status: "draft"

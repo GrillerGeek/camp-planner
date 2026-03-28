@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-012"
+  intention: "INT-004"
+  description: "Grocery list auto-generates from meal plan ingredients. When a user finalizes or updates a meal plan for a trip, the system aggregates all required ingredients across all meals and produces a consolidated grocery list with quantities and units."
+  validation_criteria: "Given a meal plan with at least one meal containing ingredients, when the grocery list is generated, then every ingredient from every meal in the plan appears on the grocery list with correct aggregated quantities (e.g., two recipes each requiring 1 lb chicken yields 2 lbs chicken)."
+  edge_cases:
+    - "Meal plan has no meals or all meals have zero ingredients -- grocery list should be empty with a clear message indicating nothing is needed."
+    - "Two or more recipes use the same ingredient in different units (e.g., 2 cups milk and 500 ml milk) -- system must convert and consolidate into a single line item."
+    - "A meal plan is updated after initial grocery list generation (meal added or removed) -- the grocery list must regenerate or update to reflect the change."
+    - "Ingredient names have minor variations (e.g., 'garlic cloves' vs 'garlic') -- system should attempt to match or flag potential duplicates."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"

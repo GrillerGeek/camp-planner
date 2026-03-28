@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-008"
+  intention: "INT-003"
+  description: "Users can plan meals for each day of the trip across four meal slots: breakfast, lunch, dinner, and snacks."
+  validation_criteria: "The meal planner displays one row per trip day with columns for each meal slot. Users can add a meal (name, recipe link, notes, serving count) to any slot. Meals can be moved between slots and days via drag-and-drop or edit. The total trip day count matches the trip date range exactly. Empty slots are clearly visible to indicate incomplete planning."
+  edge_cases:
+    - "Trip dates are changed after meals have been planned — added days must appear as empty slots and removed days must warn before deleting their associated meals."
+    - "A single-day trip (start date equals end date) — system must display exactly one day row, not zero or two."
+    - "User adds a meal with no name or only whitespace — system must require a non-empty meal name."
+    - "Trip spans a very long duration (30+ days) — the interface must remain usable with pagination, scrolling, or collapsible sections rather than rendering all days at once."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"

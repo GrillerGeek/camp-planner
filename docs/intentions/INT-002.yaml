@@ -1,0 +1,17 @@
+intention:
+  id: "INT-002"
+  product: "PROD-001"
+  statement: >
+    Users can build and manage reusable packing lists that adapt based on
+    season, trip type, and duration — eliminating copy-paste errors and
+    ensuring nothing is forgotten.
+  rationale: >
+    Packing is the most error-prone part of trip prep today. Lists are
+    copy-pasted from old Excel files, leading to duplicates, missing items,
+    and gear packed for the wrong season. Smart, template-based lists that
+    adjust to trip context solve the core pain.
+  priority: "critical"
+  dependencies:
+    - "INT-001"
+  owner: "Jason Robey"
+  status: "draft"

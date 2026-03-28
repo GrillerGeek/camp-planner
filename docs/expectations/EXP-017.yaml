@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-017"
+  intention: "INT-005"
+  description: "Expiring items are flagged with visual warnings when they are approaching or past their expiration date. Users should be able to quickly identify items that need to be used soon or discarded."
+  validation_criteria: "Given an inventory item with an expiration date within 7 days of the current date, then the item displays a visual warning indicator (e.g., yellow highlight or icon). Given an item past its expiration date, then the item displays an expired indicator (e.g., red highlight or icon). Items with no expiration date set show no warning."
+  edge_cases:
+    - "Item expires today -- system should treat it as expiring (warning state) or expired depending on defined business rules, but must not show no warning at all."
+    - "Item has no expiration date -- no warning should be displayed, and the item should not appear in any expiration-filtered views."
+    - "User is in a different timezone than when the expiration date was set -- expiration comparison should use a consistent date reference (e.g., UTC or the user's local date) to avoid off-by-one-day errors."
+    - "Dozens of items are all expiring within the warning window -- the UI must remain usable and not become overwhelmed with warning indicators; a summary or count may be appropriate."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"

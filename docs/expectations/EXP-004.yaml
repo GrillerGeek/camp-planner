@@ -1,0 +1,12 @@
+expectation:
+  id: "EXP-004"
+  intention: "INT-002"
+  description: "Users can create reusable packing list templates with items organized into categories (e.g., shelter, cooking, clothing, safety, personal)."
+  validation_criteria: "A template can be created with a name, one or more categories, and items within each category. Templates are saved and appear in the user's template library. Templates can be edited (add/remove/reorder items and categories) and deleted. Duplicate template names for the same user are either prevented or disambiguated."
+  edge_cases:
+    - "User creates a template with an empty category (no items) — system must either prevent it or handle display of empty categories gracefully."
+    - "User deletes a template that is currently referenced by an active trip's packing list — the active trip's list must remain intact as an independent copy, not become broken."
+    - "Template contains items with identical names in the same category — system must handle duplicates by preventing them or differentiating them clearly."
+  complexity: "low"
+  owner: "Jason Robey"
+  status: "draft"

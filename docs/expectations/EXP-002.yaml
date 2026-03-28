@@ -1,0 +1,12 @@
+expectation:
+  id: "EXP-002"
+  intention: "INT-001"
+  description: "The trip dashboard displays a readiness overview showing completion status for packing lists, meal plans, task assignments, and reservations."
+  validation_criteria: "Dashboard accurately reflects percentage or fraction complete for each category (packing, meals, tasks, reservations). When an item is checked off or a meal is planned, the dashboard updates within 5 seconds. A fully planned trip shows 100% across all categories. A brand new trip with no planning shows 0% across all categories."
+  edge_cases:
+    - "Trip has no packing list, no meals, no tasks, and no reservations — dashboard must display a meaningful empty state rather than 0/0 or NaN percentages."
+    - "A planner removes all items from a previously complete category — status must revert from 100% to the empty state, not remain stale."
+    - "Dashboard is viewed on a slow or intermittent network connection — partial data loads must not show misleading completion numbers; loading indicators should appear for unresolved sections."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"
