@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getTripById, getUserRoleForTrip } from "@/lib/queries/trips";
+import { getPackingProgress } from "@/lib/queries/packing";
 import Link from "next/link";
 import { TripHeader } from "./components/TripHeader";
 import { ReadinessCard } from "./components/ReadinessCard";
@@ -12,9 +13,10 @@ export default async function TripDetailPage({
   const { tripId } = await params;
   const supabase = await createClient();
 
-  const [trip, role] = await Promise.all([
+  const [trip, role, packingProgress] = await Promise.all([
     getTripById(supabase, tripId),
     getUserRoleForTrip(supabase, tripId),
+    getPackingProgress(supabase, tripId),
   ]);
 
   if (!trip || !role) {
@@ -52,9 +54,27 @@ export default async function TripDetailPage({
         <ReadinessCard
           title="Packing"
           icon="🎒"
-          status="empty"
-          percentage={0}
-          emptyMessage="No packing list yet — add items to get started"
+          status={
+            !packingProgress || packingProgress.total === 0
+              ? "empty"
+              : packingProgress.packed === packingProgress.total
+              ? "complete"
+              : "in_progress"
+          }
+          percentage={
+            packingProgress && packingProgress.total > 0
+              ? Math.round(
+                  (packingProgress.packed / packingProgress.total) * 100
+                )
+              : 0
+          }
+          detail={
+            packingProgress && packingProgress.total > 0
+              ? `${packingProgress.packed}/${packingProgress.total} items packed`
+              : undefined
+          }
+          emptyMessage="No packing list yet — tap to get started"
+          href={`/dashboard/trips/${tripId}/packing`}
         />
         <ReadinessCard
           title="Meals"
