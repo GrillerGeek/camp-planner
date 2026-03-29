@@ -35,6 +35,12 @@ export default async function DashboardLayout({
               <Link href="/dashboard/templates" className="text-camp-earth hover:text-white text-sm transition-colors">
                 Templates
               </Link>
+              <Link href="/dashboard/recipes" className="text-camp-earth hover:text-white text-sm transition-colors">
+                Recipes
+              </Link>
+              <Link href="/dashboard/inventory" className="text-camp-earth hover:text-white text-sm transition-colors">
+                Inventory
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">

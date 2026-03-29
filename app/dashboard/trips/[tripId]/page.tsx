@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { getTripById, getUserRoleForTrip } from "@/lib/queries/trips";
 import { getPackingProgress } from "@/lib/queries/packing";
+import { getMealProgress } from "@/lib/queries/meals";
+import { getTaskProgress } from "@/lib/queries/tasks";
 import Link from "next/link";
 import { TripHeader } from "./components/TripHeader";
 import { ReadinessCard } from "./components/ReadinessCard";
@@ -13,10 +15,12 @@ export default async function TripDetailPage({
   const { tripId } = await params;
   const supabase = await createClient();
 
-  const [trip, role, packingProgress] = await Promise.all([
+  const [trip, role, packingProgress, mealProgress, taskProgress] = await Promise.all([
     getTripById(supabase, tripId),
     getUserRoleForTrip(supabase, tripId),
     getPackingProgress(supabase, tripId),
+    getMealProgress(supabase, tripId),
+    getTaskProgress(supabase, tripId),
   ]);
 
   if (!trip || !role) {
@@ -79,16 +83,52 @@ export default async function TripDetailPage({
         <ReadinessCard
           title="Meals"
           icon="🍳"
-          status="empty"
-          percentage={0}
-          emptyMessage="No meals planned yet"
+          status={
+            !mealProgress || mealProgress.planned === 0
+              ? "empty"
+              : mealProgress.planned >= mealProgress.total
+              ? "complete"
+              : "in_progress"
+          }
+          percentage={
+            mealProgress && mealProgress.total > 0
+              ? Math.round(
+                  (mealProgress.planned / mealProgress.total) * 100
+                )
+              : 0
+          }
+          detail={
+            mealProgress && mealProgress.planned > 0
+              ? `${mealProgress.planned}/${mealProgress.total} meals planned`
+              : undefined
+          }
+          emptyMessage="No meals planned yet — tap to get started"
+          href={`/dashboard/trips/${tripId}/meals`}
         />
         <ReadinessCard
           title="Tasks"
           icon="✅"
-          status="empty"
-          percentage={0}
-          emptyMessage="No tasks assigned yet"
+          status={
+            !taskProgress || taskProgress.total === 0
+              ? "empty"
+              : taskProgress.completed === taskProgress.total
+              ? "complete"
+              : "in_progress"
+          }
+          percentage={
+            taskProgress && taskProgress.total > 0
+              ? Math.round(
+                  (taskProgress.completed / taskProgress.total) * 100
+                )
+              : 0
+          }
+          detail={
+            taskProgress && taskProgress.total > 0
+              ? `${taskProgress.completed}/${taskProgress.total} tasks completed`
+              : undefined
+          }
+          emptyMessage="No tasks assigned yet — tap to get started"
+          href={`/dashboard/trips/${tripId}/tasks`}
         />
         <ReadinessCard
           title="Reservations"
