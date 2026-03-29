@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Trip } from "@/lib/types/trip";
 import { formatDateRange } from "@/lib/utils/dates";
 import { DeleteTripDialog } from "./DeleteTripDialog";
+import { ShareTripButton } from "./ShareTripButton";
 
 interface TripHeaderProps {
   trip: Trip;
@@ -68,6 +69,7 @@ export function TripHeader({ trip, userRole }: TripHeaderProps) {
 
         {userRole === "planner" && (
           <div className="flex items-center gap-2 shrink-0">
+            <ShareTripButton tripId={trip.id} />
             <Link
               href={`/dashboard/trips/${trip.id}/edit`}
               className="text-camp-earth hover:text-white text-sm font-medium py-2 px-3 rounded-lg hover:bg-white/10 transition-colors"

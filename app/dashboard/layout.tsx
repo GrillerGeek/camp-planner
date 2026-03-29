@@ -44,6 +44,9 @@ export default async function DashboardLayout({
               <Link href="/dashboard/inventory" className="text-camp-earth hover:text-white text-sm transition-colors">
                 Inventory
               </Link>
+              <Link href="/dashboard/history" className="text-camp-earth hover:text-white text-sm transition-colors">
+                History
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">

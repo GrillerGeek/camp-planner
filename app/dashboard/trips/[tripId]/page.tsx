@@ -3,9 +3,11 @@ import { getTripById, getUserRoleForTrip } from "@/lib/queries/trips";
 import { getPackingProgress } from "@/lib/queries/packing";
 import { getMealProgress } from "@/lib/queries/meals";
 import { getTaskProgress } from "@/lib/queries/tasks";
+import { getReservationProgress } from "@/lib/queries/reservations";
 import Link from "next/link";
 import { TripHeader } from "./components/TripHeader";
 import { ReadinessCard } from "./components/ReadinessCard";
+import { CompleteTripButton } from "./components/CompleteTripButton";
 
 export default async function TripDetailPage({
   params,
@@ -15,12 +17,13 @@ export default async function TripDetailPage({
   const { tripId } = await params;
   const supabase = await createClient();
 
-  const [trip, role, packingProgress, mealProgress, taskProgress] = await Promise.all([
+  const [trip, role, packingProgress, mealProgress, taskProgress, reservationProgress] = await Promise.all([
     getTripById(supabase, tripId),
     getUserRoleForTrip(supabase, tripId),
     getPackingProgress(supabase, tripId),
     getMealProgress(supabase, tripId),
     getTaskProgress(supabase, tripId),
+    getReservationProgress(supabase, tripId),
   ]);
 
   if (!trip || !role) {
@@ -133,11 +136,61 @@ export default async function TripDetailPage({
         <ReadinessCard
           title="Reservations"
           icon="📋"
-          status="empty"
-          percentage={0}
-          emptyMessage="No reservations added yet"
+          status={
+            !reservationProgress || reservationProgress.count === 0
+              ? "empty"
+              : "complete"
+          }
+          percentage={reservationProgress && reservationProgress.count > 0 ? 100 : 0}
+          detail={
+            reservationProgress && reservationProgress.count > 0
+              ? `${reservationProgress.count} reservation${reservationProgress.count !== 1 ? "s" : ""} added`
+              : undefined
+          }
+          emptyMessage="No reservations added yet -- tap to get started"
+          href={`/dashboard/trips/${tripId}/reservations`}
         />
       </div>
+
+      {/* Journal link for completed trips */}
+      {trip.status === "completed" && (
+        <div className="mt-6">
+          <Link
+            href={`/dashboard/trips/${tripId}/journal`}
+            className="block bg-white/5 border border-white/10 rounded-xl p-5 hover:border-white/20 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📔</span>
+              <div>
+                <h3 className="text-white font-medium">Trip Journal</h3>
+                <p className="text-camp-earth text-sm">
+                  View and add memories from this trip
+                </p>
+              </div>
+              <svg
+                className="w-5 h-5 text-camp-earth/40 ml-auto"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m8.25 4.5 7.5 7.5-7.5 7.5"
+                />
+              </svg>
+            </div>
+          </Link>
+        </div>
+      )}
+
+      {/* Complete Trip button for planners on non-completed trips */}
+      {role === "planner" && trip.status !== "completed" && (
+        <div className="mt-6">
+          <CompleteTripButton tripId={tripId} />
+        </div>
+      )}
     </div>
   );
 }
