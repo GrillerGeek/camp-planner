@@ -33,7 +33,10 @@ export default async function DashboardLayout({
                 Trips
               </Link>
               <Link href="/dashboard/templates" className="text-camp-earth hover:text-white text-sm transition-colors">
-                Templates
+                Packing Templates
+              </Link>
+              <Link href="/dashboard/task-templates" className="text-camp-earth hover:text-white text-sm transition-colors">
+                Task Templates
               </Link>
               <Link href="/dashboard/recipes" className="text-camp-earth hover:text-white text-sm transition-colors">
                 Recipes
