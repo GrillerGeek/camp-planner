@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getTripById, getUserRoleForTrip } from "@/lib/queries/trips";
-import { getTripJournalEntries } from "@/lib/queries/journal";
+import {
+  getTripJournalEntries,
+  getSignedJournalPhotoUrls,
+} from "@/lib/queries/journal";
 import { JournalClient } from "./components/JournalClient";
 
 export default async function TripJournalPage({
@@ -17,6 +20,12 @@ export default async function TripJournalPage({
     getUserRoleForTrip(supabase, tripId),
     getTripJournalEntries(supabase, tripId),
   ]);
+
+  const allPhotoPaths = entries.flatMap((entry) => entry.photo_urls ?? []);
+  const signedPhotoUrls = await getSignedJournalPhotoUrls(
+    supabase,
+    allPhotoPaths
+  );
 
   if (!trip || !role) {
     return (
@@ -75,6 +84,7 @@ export default async function TripJournalPage({
         tripId={tripId}
         isPlanner={isPlanner}
         initialEntries={entries}
+        initialSignedUrls={signedPhotoUrls}
       />
     </div>
   );

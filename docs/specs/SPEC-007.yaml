@@ -2,7 +2,26 @@ spec:
   id: "SPEC-007"
   name: "Task & Prep Management"
   product: "PROD-001"
-  status: "draft"
+  status: "shipped"
+
+  review:
+    date: "2026-04-14"
+    summary: |
+      Retroactive deep review found: viewer UPDATE policy on trip_tasks was
+      column-unrestricted — a viewer assigned to a task could rewrite title,
+      description, due_date, assigned_to, or priority; trip_tasks.assigned_to
+      had no trip-member check (FK only to profiles); task_templates RLS
+      using (true) confirmed as intentional shared library; viewer UI showed
+      the checkbox on tasks not assigned to them (silent RLS failure).
+    fixes:
+      - "Migration 009: trip_tasks before-update trigger (enforce_trip_tasks_viewer_column_scope) raises if a non-planner tries to change anything but completion columns"
+      - "Migration 009: trip_tasks before-insert/update trigger (enforce_trip_tasks_assignee_membership) raises if assigned_to is not a trip member"
+      - "TaskListClient: checkbox disabled for viewers on tasks not assigned to them; title tooltip explains why"
+      - "currentUserId threaded from page.tsx to support the assignee check"
+    deferred:
+      - "template_source_id on trip_tasks (provenance tracking) — file as SPEC-007b"
+      - "relative_due_days and priority on task_template_items — file as SPEC-007b"
+      - "Duplicate-apply-template warning — file as SPEC-007b"
   owner: "Jason Robey"
   created: "2026-03-27"
 

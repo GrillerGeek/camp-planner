@@ -34,6 +34,8 @@ export function TripForm({ mode, initialData }: TripFormProps) {
 
     if (!form.destination.trim())
       newErrors.destination = "Destination is required";
+    else if (form.destination.trim().length > 500)
+      newErrors.destination = "Destination must be 500 characters or less";
 
     if (!form.start_date) newErrors.start_date = "Start date is required";
     if (!form.end_date) newErrors.end_date = "End date is required";
@@ -109,6 +111,7 @@ export function TripForm({ mode, initialData }: TripFormProps) {
             value={form.destination}
             onChange={(e) => handleChange("destination", e.target.value)}
             placeholder="e.g., Smoky Mountains, TN"
+            maxLength={500}
             className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-camp-earth/50 focus:outline-none focus:ring-2 focus:ring-camp-forest focus:border-transparent"
           />
           {errors.destination && (

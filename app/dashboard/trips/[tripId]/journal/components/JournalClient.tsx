@@ -8,20 +8,25 @@ import {
   updateJournalEntry,
   deleteJournalEntry,
   uploadJournalPhoto,
+  getSignedJournalPhotoUrls,
 } from "@/lib/queries/journal";
 
 interface JournalClientProps {
   tripId: string;
   isPlanner: boolean;
   initialEntries: TripJournalEntry[];
+  initialSignedUrls: Record<string, string>;
 }
 
 export function JournalClient({
   tripId,
   isPlanner,
   initialEntries,
+  initialSignedUrls,
 }: JournalClientProps) {
   const [entries, setEntries] = useState<TripJournalEntry[]>(initialEntries);
+  const [signedUrls, setSignedUrls] =
+    useState<Record<string, string>>(initialSignedUrls);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [content, setContent] = useState("");
@@ -35,6 +40,8 @@ export function JournalClient({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const supabase = createClient();
+
+  const resolvePhotoUrl = (path: string) => signedUrls[path] ?? path;
 
   const handleFiles = useCallback((files: FileList | File[]) => {
     const validFiles = Array.from(files).filter((f) =>
@@ -83,15 +90,24 @@ export function JournalClient({
     setError(null);
 
     try {
-      // Upload new photos
-      const newPhotoUrls: string[] = [];
+      // Upload new photos (returns storage paths, not URLs)
+      const newPhotoPaths: string[] = [];
       for (const file of selectedFiles) {
-        const url = await uploadJournalPhoto(supabase, tripId, file);
-        newPhotoUrls.push(url);
+        const path = await uploadJournalPhoto(supabase, tripId, file);
+        newPhotoPaths.push(path);
+      }
+
+      // Fetch signed URLs for the newly uploaded photos so they can render
+      if (newPhotoPaths.length > 0) {
+        const freshSignedUrls = await getSignedJournalPhotoUrls(
+          supabase,
+          newPhotoPaths
+        );
+        setSignedUrls((prev) => ({ ...prev, ...freshSignedUrls }));
       }
 
       if (editingId) {
-        const allPhotos = [...editPhotoUrls, ...newPhotoUrls];
+        const allPhotos = [...editPhotoUrls, ...newPhotoPaths];
         const updated = await updateJournalEntry(supabase, editingId, {
           content: content.trim(),
           photo_urls: allPhotos,
@@ -105,7 +121,7 @@ export function JournalClient({
           supabase,
           tripId,
           content.trim(),
-          newPhotoUrls
+          newPhotoPaths
         );
         setEntries((prev) => [...prev, created]);
       }
@@ -256,14 +272,14 @@ export function JournalClient({
                   {/* Photo gallery */}
                   {entry.photo_urls && entry.photo_urls.length > 0 && (
                     <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {entry.photo_urls.map((url, i) => (
+                      {entry.photo_urls.map((path, i) => (
                         <button
                           key={i}
-                          onClick={() => setLightboxUrl(url)}
+                          onClick={() => setLightboxUrl(resolvePhotoUrl(path))}
                           className="aspect-square rounded-lg overflow-hidden bg-white/5 hover:opacity-80 transition-opacity"
                         >
                           <img
-                            src={url}
+                            src={resolvePhotoUrl(path)}
                             alt={`Photo ${i + 1}`}
                             className="w-full h-full object-cover"
                           />
@@ -338,11 +354,11 @@ export function JournalClient({
                   Current Photos
                 </label>
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                  {editPhotoUrls.map((url, i) => (
+                  {editPhotoUrls.map((path, i) => (
                     <div key={i} className="relative group">
                       <div className="aspect-square rounded-lg overflow-hidden bg-white/5">
                         <img
-                          src={url}
+                          src={resolvePhotoUrl(path)}
                           alt={`Photo ${i + 1}`}
                           className="w-full h-full object-cover"
                         />

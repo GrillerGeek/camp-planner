@@ -14,8 +14,10 @@ export function DeleteTripDialog({ tripId, tripName }: DeleteTripDialogProps) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function open() {
+    setError(null);
     dialogRef.current?.showModal();
   }
 
@@ -25,11 +27,24 @@ export function DeleteTripDialog({ tripId, tripName }: DeleteTripDialogProps) {
 
   async function handleDelete() {
     setLoading(true);
+    setError(null);
     try {
       const supabase = createClient();
-      await deleteTrip(supabase, tripId);
+      const { deleted } = await deleteTrip(supabase, tripId);
+      if (!deleted) {
+        setError(
+          "This trip could not be deleted. It may have already been removed by another planner, or you may no longer have permission."
+        );
+        setLoading(false);
+        return;
+      }
       router.push("/dashboard");
-    } catch {
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong. Please try again."
+      );
       setLoading(false);
     }
   }
@@ -53,6 +68,11 @@ export function DeleteTripDialog({ tripId, tripName }: DeleteTripDialogProps) {
           be undone. All packing lists, meals, tasks, and reservations for this
           trip will be permanently removed.
         </p>
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-300 rounded-lg p-3 mb-4 text-sm">
+            {error}
+          </div>
+        )}
         <div className="flex items-center gap-3 justify-end">
           <button
             onClick={close}

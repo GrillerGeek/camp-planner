@@ -7,18 +7,22 @@ import {
   reconcileWithServer,
   createPendingQueue,
   type PendingQueue,
+  type ConflictReport,
 } from "./optimistic";
 
-interface UseOptimisticMutationOptions<T> {
-  onConflict?: (conflicts: (keyof T)[]) => void;
+interface UseOptimisticMutationOptions<T extends Record<string, unknown>> {
+  onConflict?: (conflicts: ConflictReport<T>[]) => void;
   onOptimisticUpdate?: (optimistic: T) => void;
   onRollback?: (original: T) => void;
   getCurrentState?: () => T;
 }
 
 /**
- * Hook wrapping Supabase updates with optimistic UI behavior.
- * Immediately applies updates locally, sends to server, and reconciles on response.
+ * Wraps a Supabase row update with optimistic UI behavior. Applies the
+ * update locally, sends it to the server, and reconciles the server's
+ * response against what we attempted to write. If any field came back
+ * different from what we sent, another writer beat us to it and onConflict
+ * fires with the overwritten-value details.
  */
 export function useOptimisticMutation<T extends Record<string, unknown>>(
   tableName: string,
@@ -29,18 +33,16 @@ export function useOptimisticMutation<T extends Record<string, unknown>>(
 
   const mutate = useCallback(
     async (rowId: string, updates: Partial<T>) => {
-      const currentState = options.getCurrentState?.();
+      const originalState = options.getCurrentState?.();
 
-      // Enqueue the mutation
       const mutationId = queueRef.current.enqueue({
         table: tableName,
         rowId,
         fields: updates,
       });
 
-      // Apply optimistic update locally
-      if (currentState) {
-        const optimistic = applyOptimisticUpdate(currentState, updates);
+      if (originalState) {
+        const optimistic = applyOptimisticUpdate(originalState, updates);
         options.onOptimisticUpdate?.(optimistic);
       }
 
@@ -57,27 +59,21 @@ export function useOptimisticMutation<T extends Record<string, unknown>>(
 
         if (error) throw error;
 
-        // Confirm the mutation
         queueRef.current.confirm(mutationId);
 
-        // Reconcile with server response if we have local state
-        if (currentState && data) {
-          const pendingFields = Object.keys(updates) as (keyof T)[];
-          const { conflicts } = reconcileWithServer(
-            currentState,
-            data as T,
-            pendingFields
+        if (data) {
+          const { conflicts } = reconcileWithServer<T>(
+            updates,
+            data as T
           );
-
           if (conflicts.length > 0) {
             options.onConflict?.(conflicts);
           }
         }
       } catch {
-        // Reject the mutation and rollback
         queueRef.current.reject(mutationId);
-        if (currentState) {
-          options.onRollback?.(currentState);
+        if (originalState) {
+          options.onRollback?.(originalState);
         }
       } finally {
         const stillPending = queueRef.current.getPending().length > 0;

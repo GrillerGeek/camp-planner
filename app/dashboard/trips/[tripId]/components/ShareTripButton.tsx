@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { TripShareLink } from "@/lib/types/sharing";
 import {
@@ -13,69 +13,109 @@ interface ShareTripButtonProps {
   tripId: string;
 }
 
+interface FreshLink {
+  linkId: string;
+  plaintext: string;
+}
+
 export function ShareTripButton({ tripId }: ShareTripButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [links, setLinks] = useState<TripShareLink[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Plaintext tokens are only available for links generated this session.
+  // We intentionally do not persist them — the server only stores the hash.
+  const [freshTokens, setFreshTokens] = useState<Map<string, string>>(
+    new Map()
+  );
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const supabase = createClient();
+
+  const loadLinks = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getShareLinksForTrip(supabase, tripId);
+      setLinks(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load links");
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase, tripId]);
 
   useEffect(() => {
     if (isOpen) {
       loadLinks();
     }
-  }, [isOpen]);
-
-  async function loadLinks() {
-    setLoading(true);
-    try {
-      const data = await getShareLinksForTrip(supabase, tripId);
-      setLinks(data);
-    } catch {
-      // Silently handle error
-    } finally {
-      setLoading(false);
-    }
-  }
+  }, [isOpen, loadLinks]);
 
   async function handleGenerate() {
     setGenerating(true);
+    setError(null);
     try {
-      const newLink = await createShareLink(supabase, tripId);
-      setLinks((prev) => [newLink, ...prev]);
-    } catch {
-      // Silently handle error
+      const { plaintext } = await createShareLink(supabase, tripId);
+      // Reload the list to get the new row's id + created_at metadata
+      const refreshed = await getShareLinksForTrip(supabase, tripId);
+      setLinks(refreshed);
+      // Match the newest non-revoked link — it's the one we just made
+      const newest = refreshed
+        .filter((l) => !l.revoked_at)
+        .sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() -
+            new Date(a.created_at).getTime()
+        )[0];
+      if (newest) {
+        setFreshTokens((prev) => {
+          const next = new Map(prev);
+          next.set(newest.id, plaintext);
+          return next;
+        });
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to generate share link"
+      );
     } finally {
       setGenerating(false);
     }
   }
 
   async function handleRevoke(linkId: string) {
+    setError(null);
     try {
-      await revokeShareLink(supabase, linkId);
+      await revokeShareLink(supabase, linkId, tripId);
       setLinks((prev) =>
         prev.map((l) =>
           l.id === linkId ? { ...l, revoked_at: new Date().toISOString() } : l
         )
       );
-    } catch {
-      // Silently handle error
+      setFreshTokens((prev) => {
+        const next = new Map(prev);
+        next.delete(linkId);
+        return next;
+      });
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to revoke share link"
+      );
     }
   }
 
-  function getShareUrl(token: string) {
-    return `${window.location.origin}/shared/${token}`;
+  function getShareUrl(plaintext: string) {
+    return `${window.location.origin}/shared/${plaintext}`;
   }
 
-  async function handleCopy(token: string, linkId: string) {
+  async function handleCopy(linkId: string, plaintext: string) {
     try {
-      await navigator.clipboard.writeText(getShareUrl(token));
+      await navigator.clipboard.writeText(getShareUrl(plaintext));
       setCopiedId(linkId);
       setTimeout(() => setCopiedId(null), 2000);
     } catch {
-      // Clipboard API might fail in some contexts
+      setError("Clipboard unavailable — long-press to copy the URL manually");
     }
   }
 
@@ -113,9 +153,7 @@ export function ShareTripButton({ tripId }: ShareTripButtonProps) {
           <div className="relative bg-camp-night border border-white/10 rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-semibold text-white">
-                  Share Trip
-                </h2>
+                <h2 className="text-lg font-semibold text-white">Share Trip</h2>
                 <button
                   onClick={() => setIsOpen(false)}
                   className="text-camp-earth hover:text-white transition-colors"
@@ -137,10 +175,16 @@ export function ShareTripButton({ tripId }: ShareTripButtonProps) {
               </div>
 
               <p className="text-camp-earth text-sm mb-4">
-                Generate a view-only link to share this trip with guests. They
-                can see the itinerary, meals, packing list, and tasks without
-                needing an account.
+                Generate a view-only link to share this trip with guests. The
+                URL is shown <strong>only at creation time</strong> — if you
+                lose it, revoke this link and generate a new one.
               </p>
+
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg p-3 mb-4 text-sm">
+                  {error}
+                </div>
+              )}
 
               <button
                 onClick={handleGenerate}
@@ -162,40 +206,54 @@ export function ShareTripButton({ tripId }: ShareTripButtonProps) {
                         Active Links
                       </h3>
                       <div className="space-y-3">
-                        {activeLinks.map((link) => (
-                          <div
-                            key={link.id}
-                            className="bg-white/5 border border-white/10 rounded-lg p-3"
-                          >
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="flex-1 bg-black/20 rounded px-3 py-1.5 text-xs text-camp-earth font-mono truncate">
-                                {getShareUrl(link.token)}
+                        {activeLinks.map((link) => {
+                          const plaintext = freshTokens.get(link.id);
+                          return (
+                            <div
+                              key={link.id}
+                              className="bg-white/5 border border-white/10 rounded-lg p-3"
+                            >
+                              {plaintext ? (
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="flex-1 bg-black/20 rounded px-3 py-1.5 text-xs text-camp-earth font-mono truncate">
+                                    {getShareUrl(plaintext)}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-xs text-camp-earth/50 mb-2">
+                                  URL hidden — generate a new link to get a
+                                  shareable URL.
+                                </div>
+                              )}
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-camp-earth/60">
+                                  Created{" "}
+                                  {new Date(
+                                    link.created_at
+                                  ).toLocaleDateString()}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  {plaintext && (
+                                    <button
+                                      onClick={() =>
+                                        handleCopy(link.id, plaintext)
+                                      }
+                                      className="text-xs text-camp-sky hover:text-white font-medium transition-colors"
+                                    >
+                                      {copiedId === link.id ? "Copied!" : "Copy"}
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleRevoke(link.id)}
+                                    className="text-xs text-camp-fire hover:text-red-400 font-medium transition-colors"
+                                  >
+                                    Revoke
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-camp-earth/60">
-                                Created{" "}
-                                {new Date(link.created_at).toLocaleDateString()}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() =>
-                                    handleCopy(link.token, link.id)
-                                  }
-                                  className="text-xs text-camp-sky hover:text-white font-medium transition-colors"
-                                >
-                                  {copiedId === link.id ? "Copied!" : "Copy"}
-                                </button>
-                                <button
-                                  onClick={() => handleRevoke(link.id)}
-                                  className="text-xs text-camp-fire hover:text-red-400 font-medium transition-colors"
-                                >
-                                  Revoke
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -211,9 +269,6 @@ export function ShareTripButton({ tripId }: ShareTripButtonProps) {
                             key={link.id}
                             className="bg-white/5 border border-white/5 rounded-lg p-3 opacity-50"
                           >
-                            <div className="text-xs text-camp-earth/40 font-mono truncate mb-1">
-                              ...{link.token.slice(-12)}
-                            </div>
                             <span className="text-xs text-camp-earth/40">
                               Revoked{" "}
                               {new Date(link.revoked_at!).toLocaleDateString()}

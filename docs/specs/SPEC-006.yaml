@@ -2,7 +2,25 @@ spec:
   id: "SPEC-006"
   name: "Grocery List Generation & Camper Inventory"
   product: "PROD-001"
-  status: "draft"
+  status: "shipped"
+
+  review:
+    date: "2026-04-14"
+    summary: |
+      Retroactive deep review found: camper_inventory RLS was using (true) —
+      confirmed as intentional shared-household model (product decision,
+      single-family use case); timezone bug in expired-item exclusion (used
+      toISOString() which is UTC, should use local midnight); unit conversion
+      silently sums incompatible units; no auto-regeneration on meal plan change.
+    fixes:
+      - "Migration 009: camper_inventory documented as shared household via comment"
+      - "lib/queries/grocery.ts: expired-item filter now uses local-date string from local midnight, not toISOString()"
+      - "GroceryListClient: generate errors surface as a banner instead of silent catch"
+    deferred:
+      - "Unit-family bucketing (no more silent sum of cups + lbs) — file as SPEC-006b"
+      - "Auto-regenerate on meal plan change — file as SPEC-006b"
+      - "Manual/auto dedupe on grocery items — file as SPEC-006b"
+      - "Reconcile: add-to-inventory for newly-purchased items — file as SPEC-006b"
   owner: "Jason Robey"
   created: "2026-03-27"
 

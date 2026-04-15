@@ -1,7 +1,39 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import { getTripByShareToken } from "@/lib/queries/sharing";
+import type { Metadata } from "next";
+import { getSharedTripByToken } from "@/lib/queries/sharing";
 import { formatDateRange } from "@/lib/utils/dates";
+
+// Anonymous Supabase client — the anon key only, no service role. All data
+// access flows through the public.get_shared_trip RPC which enforces the
+// scoped read via its SECURITY DEFINER body.
+function createAnonClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createServerClient(url, key, {
+    cookies: {
+      getAll() {
+        return [];
+      },
+      setAll() {
+        /* guest page never sets cookies */
+      },
+    },
+  });
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}): Promise<Metadata> {
+  const { token } = await params;
+  const supabase = createAnonClient();
+  const data = await getSharedTripByToken(supabase, token);
+  if (!data) {
+    return { title: "Shared trip" };
+  }
+  return { title: `Trip: ${data.trip.name}` };
+}
 
 export default async function SharedTripPage({
   params,
@@ -9,48 +41,24 @@ export default async function SharedTripPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-
-  // Create a supabase client that works without auth (service role not needed
-  // because RLS on trip_share_links allows anon SELECT for active tokens,
-  // but trip data tables require authenticated access. We use the anon key
-  // and handle via server-side fetch with service role env var if available,
-  // otherwise fall back to a standard server client).
-  const cookieStore = await cookies();
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-  const supabase = createServerClient(supabaseUrl, supabaseKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
-      },
-      setAll() {
-        // No-op for shared pages
-      },
-    },
-  });
-
-  const data = await getTripByShareToken(supabase, token);
+  const supabase = createAnonClient();
+  const data = await getSharedTripByToken(supabase, token);
 
   if (!data) {
     return (
       <div className="text-center py-16">
-        <div className="text-5xl mb-4">&#128279;</div>
         <h2 className="text-xl font-semibold text-white mb-2">
-          Link Expired or Invalid
+          This link is no longer valid
         </h2>
         <p className="text-camp-earth">
-          This link has expired or been revoked. Please ask the trip planner for
-          a new link.
+          The trip planner may have revoked it. Ask them for a new link.
         </p>
       </div>
     );
   }
 
-  const { trip, planner_name, meals, packing_items, tasks } = data;
+  const { trip, planner_name, reservations, meals, packing_items, tasks } =
+    data;
 
   // Group meals by day
   const mealsByDay = new Map<string, typeof meals>();
@@ -78,7 +86,6 @@ export default async function SharedTripPage({
 
   return (
     <div>
-      {/* Banner */}
       <div className="bg-camp-forest/20 border border-camp-forest/30 rounded-xl p-4 mb-8">
         <p className="text-camp-forest text-sm font-medium">
           You&apos;re viewing{" "}
@@ -87,31 +94,10 @@ export default async function SharedTripPage({
         </p>
       </div>
 
-      {/* Trip Summary */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white mb-2">{trip.name}</h1>
         <div className="flex flex-wrap items-center gap-4 text-sm text-camp-earth">
-          <span className="flex items-center gap-1.5">
-            <svg
-              className="w-3.5 h-3.5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"
-              />
-            </svg>
-            {trip.destination}
-          </span>
+          <span>{trip.destination}</span>
           <span className="text-camp-earth/60">
             {formatDateRange(trip.start_date, trip.end_date)}
           </span>
@@ -124,8 +110,35 @@ export default async function SharedTripPage({
         )}
       </div>
 
-      {/* Meal Plan */}
-      <Section title="Meal Plan" icon="&#127859;">
+      <Section title="Reservations">
+        {reservations.length === 0 ? (
+          <EmptyMessage>No reservations listed.</EmptyMessage>
+        ) : (
+          <div className="space-y-2">
+            {reservations.map((r) => (
+              <div
+                key={r.id}
+                className="bg-white/5 rounded-lg px-3 py-2 text-sm"
+              >
+                <div className="text-white font-medium">{r.campground_name}</div>
+                <div className="text-camp-earth/60 text-xs">
+                  {r.site_number && <>Site {r.site_number} · </>}
+                  {r.check_in_date && r.check_out_date
+                    ? formatDateRange(r.check_in_date, r.check_out_date)
+                    : null}
+                </div>
+                {r.notes && (
+                  <div className="text-camp-earth/50 text-xs mt-1">
+                    {r.notes}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      <Section title="Meal Plan">
         {meals.length === 0 ? (
           <EmptyMessage>No meals planned yet.</EmptyMessage>
         ) : (
@@ -155,13 +168,10 @@ export default async function SharedTripPage({
                           {meal.meal_type}
                         </span>
                         <span className="text-sm text-white">
-                          {meal.recipe_name ?? meal.custom_meal_name ?? "TBD"}
+                          {meal.recipe_name ??
+                            meal.custom_meal_name ??
+                            "TBD"}
                         </span>
-                        {meal.notes && (
-                          <span className="text-xs text-camp-earth/40 ml-auto">
-                            {meal.notes}
-                          </span>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -172,10 +182,9 @@ export default async function SharedTripPage({
         )}
       </Section>
 
-      {/* Packing Items */}
-      <Section title="Packing List" icon="&#127890;">
+      <Section title="Packing (assigned items only)">
         {packing_items.length === 0 ? (
-          <EmptyMessage>No packing items added yet.</EmptyMessage>
+          <EmptyMessage>Nothing assigned to guests.</EmptyMessage>
         ) : (
           <div className="space-y-4">
             {[...packingByCategory.entries()].map(([category, items]) => (
@@ -208,11 +217,6 @@ export default async function SharedTripPage({
                           {item.assigned_to_name}
                         </span>
                       )}
-                      {item.is_packed && (
-                        <span className="text-xs text-camp-forest">
-                          Packed
-                        </span>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -222,10 +226,9 @@ export default async function SharedTripPage({
         )}
       </Section>
 
-      {/* Tasks */}
-      <Section title="Tasks" icon="&#9989;">
+      <Section title="Tasks (assigned only)">
         {tasks.length === 0 ? (
-          <EmptyMessage>No tasks assigned yet.</EmptyMessage>
+          <EmptyMessage>No tasks assigned to guests.</EmptyMessage>
         ) : (
           <div className="space-y-1.5">
             {tasks.map((task) => (
@@ -233,29 +236,6 @@ export default async function SharedTripPage({
                 key={task.id}
                 className="bg-white/5 rounded-lg px-3 py-2 flex items-center gap-3"
               >
-                <span
-                  className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                    task.is_completed
-                      ? "bg-camp-forest border-camp-forest"
-                      : "border-white/20"
-                  }`}
-                >
-                  {task.is_completed && (
-                    <svg
-                      className="w-3 h-3 text-white"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={3}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  )}
-                </span>
                 <div className="flex-1 min-w-0">
                   <span
                     className={`text-sm ${
@@ -266,30 +246,12 @@ export default async function SharedTripPage({
                   >
                     {task.title}
                   </span>
-                  {task.description && (
-                    <p className="text-xs text-camp-earth/40 mt-0.5 truncate">
-                      {task.description}
-                    </p>
-                  )}
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {task.assigned_to_name && (
-                    <span className="text-xs text-camp-sky/60">
-                      {task.assigned_to_name}
-                    </span>
-                  )}
-                  <span
-                    className={`text-xs px-1.5 py-0.5 rounded ${
-                      task.priority === "high"
-                        ? "bg-camp-fire/20 text-camp-fire"
-                        : task.priority === "low"
-                        ? "bg-white/5 text-camp-earth/40"
-                        : "bg-white/5 text-camp-earth/60"
-                    }`}
-                  >
-                    {task.priority}
+                {task.assigned_to_name && (
+                  <span className="text-xs text-camp-sky/60 shrink-0">
+                    {task.assigned_to_name}
                   </span>
-                </div>
+                )}
               </div>
             ))}
           </div>
@@ -301,19 +263,14 @@ export default async function SharedTripPage({
 
 function Section({
   title,
-  icon,
   children,
 }: {
   title: string;
-  icon: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="mb-8">
-      <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-        <span dangerouslySetInnerHTML={{ __html: icon }} />
-        {title}
-      </h3>
+      <h3 className="text-lg font-semibold text-white mb-4">{title}</h3>
       {children}
     </div>
   );

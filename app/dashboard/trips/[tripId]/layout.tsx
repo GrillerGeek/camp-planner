@@ -1,38 +1,39 @@
-"use client";
+import type { ReactNode } from "react";
+import { createClient } from "@/lib/supabase/server";
+import { TripRealtimeShell } from "./components/TripRealtimeShell";
 
-import { use, type ReactNode } from "react";
-import {
-  RealtimeProvider,
-  useRealtimeContext,
-} from "@/lib/realtime/RealtimeProvider";
-
-function ConnectivityBanner() {
-  const { connectionStatus } = useRealtimeContext();
-
-  if (connectionStatus === "connected" || connectionStatus === "connecting") {
-    return null;
-  }
-
-  return (
-    <div className="bg-amber-600/90 text-white text-sm text-center py-2 px-4 rounded-lg mb-4">
-      Connection lost — changes may not sync. Reconnecting...
-    </div>
-  );
-}
-
-export default function TripDetailLayout({
+export default async function TripDetailLayout({
   children,
   params,
 }: {
   children: ReactNode;
   params: Promise<{ tripId: string }>;
 }) {
-  const { tripId } = use(params);
+  const { tripId } = await params;
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let profile: {
+    id: string;
+    display_name: string | null;
+    avatar_url: string | null;
+  } | null = null;
+
+  if (user) {
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, display_name, avatar_url")
+      .eq("id", user.id)
+      .single();
+    profile = data;
+  }
 
   return (
-    <RealtimeProvider tripId={tripId}>
-      <ConnectivityBanner />
+    <TripRealtimeShell tripId={tripId} profile={profile}>
       {children}
-    </RealtimeProvider>
+    </TripRealtimeShell>
   );
 }

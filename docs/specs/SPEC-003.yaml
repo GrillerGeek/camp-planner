@@ -5,7 +5,31 @@ spec:
     - "INT-001"
   expectations:
     - "EXP-003"
-  status: "draft"
+  status: "shipped"
+
+  review:
+    date: "2026-04-14"
+    summary: |
+      Retroactive deep review found that RealtimeProvider called channel.subscribe()
+      before consumer .on() handlers registered — Postgres change events were
+      silently lost. Provider exposed channel via useRef (no re-render on update).
+      useConnectionRecovery existed but was wired only into the orphaned
+      TripDetailClient.tsx. useOptimisticMutation conflict detection compared
+      wrong baseline. Cross-trip presence authorization not configured.
+    architectural_decision: |
+      Adopted per-feature channel pattern: the provider is now presence-only.
+      Feature clients (packing, grocery, tasks) create their own per-list
+      channels, registering .on() handlers before subscribe.
+    fixes:
+      - "RealtimeProvider: state-backed channel, presence-only, onAuthStateChange cleanup on SIGNED_OUT"
+      - "useRealtimeSubscription: creates own channel per filter, .on() before .subscribe()"
+      - "useOptimisticMutation: reconcileWithServer now compares server response to attempted updates with ConflictReport<T>"
+      - "Orphaned files deleted: useConnectionRecovery.ts, TripDetailClient.tsx"
+      - "New TripRealtimeShell wraps trip subroutes — first time PresenceAvatars is actually mounted"
+      - "CLAUDE.md updated to document per-feature channel convention"
+    deferred:
+      - "Supabase Realtime channel authorization (cross-trip presence leak) — needs server-side RLS on realtime.messages"
+      - "Tab-refocus re-sync (useConnectionRecovery logic) — re-scope if still needed"
 
   context:
     stack: "Next.js 14+ (App Router), Tailwind CSS, Supabase (PostgreSQL, Auth, Realtime), Vercel"

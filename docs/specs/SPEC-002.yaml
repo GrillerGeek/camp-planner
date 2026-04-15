@@ -6,7 +6,19 @@ spec:
   expectations:
     - "EXP-001"
     - "EXP-002"
-  status: "draft"
+  status: "shipped"
+
+  review:
+    date: "2026-04-14"
+    summary: |
+      Retroactive deep review found: destination had no length cap despite
+      spec requiring 500 chars; deleteTrip swallowed errors silently (including
+      the silent-no-op for co-planners that Phase 1 broadened RLS fixes);
+      dashboard trip list catch-and-empty-array hid query failures.
+    fixes:
+      - "TripForm destination maxLength=500 + migration 009 CHECK constraint"
+      - "deleteTrip returns {deleted} based on affected rows; DeleteTripDialog surfaces already-deleted and auth errors"
+      - "DashboardPage returns a loadError banner instead of swallowing to []"
 
   context:
     stack: "Next.js 14+ (App Router), Tailwind CSS, Supabase (PostgreSQL, Auth, Realtime), Vercel"

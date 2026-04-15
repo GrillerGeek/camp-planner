@@ -12,10 +12,14 @@ export default async function DashboardPage() {
   const firstName = user?.user_metadata?.full_name?.split(" ")[0] ?? "Camper";
 
   let trips: Awaited<ReturnType<typeof getTripsForUser>> = [];
+  let loadError: string | null = null;
   try {
     trips = await getTripsForUser(supabase);
-  } catch {
-    trips = [];
+  } catch (err) {
+    loadError =
+      err instanceof Error
+        ? err.message
+        : "Couldn't load your trips. Try refreshing.";
   }
 
   return (
@@ -48,7 +52,13 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      {trips.length === 0 ? (
+      {loadError && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-300 rounded-lg p-4 mb-6 text-sm">
+          {loadError}
+        </div>
+      )}
+
+      {trips.length === 0 && !loadError ? (
         <div className="text-center py-16">
           <div className="text-6xl mb-4">🏕️</div>
           <h2 className="text-xl font-semibold text-white mb-2">

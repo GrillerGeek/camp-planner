@@ -231,7 +231,13 @@ export async function generateGroceryListFromMeals(
     .from("camper_inventory")
     .select("*");
 
-  const today = new Date().toISOString().split("T")[0];
+  // Local-date string (YYYY-MM-DD) computed from local midnight — NOT
+  // toISOString(), which would shift items expiring today into
+  // "expired" for users west of UTC and vice versa.
+  const localNow = new Date();
+  const today = `${localNow.getFullYear()}-${String(
+    localNow.getMonth() + 1
+  ).padStart(2, "0")}-${String(localNow.getDate()).padStart(2, "0")}`;
 
   if (inventory) {
     for (const invItem of inventory) {

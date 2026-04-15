@@ -102,9 +102,13 @@ export async function updateTrip(
 export async function deleteTrip(
   supabase: SupabaseClient,
   tripId: string
-): Promise<void> {
-  const { error } = await supabase.from("trips").delete().eq("id", tripId);
+): Promise<{ deleted: boolean }> {
+  const { error, count } = await supabase
+    .from("trips")
+    .delete({ count: "exact" })
+    .eq("id", tripId);
   if (error) throw error;
+  return { deleted: (count ?? 0) > 0 };
 }
 
 export async function getUserRoleForTrip(

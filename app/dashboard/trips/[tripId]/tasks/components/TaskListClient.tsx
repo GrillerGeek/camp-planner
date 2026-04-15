@@ -15,6 +15,7 @@ import { TripTask, TaskTemplate } from "@/lib/types/tasks";
 interface TaskListClientProps {
   tripId: string;
   isPlanner: boolean;
+  currentUserId: string | null;
   initialTasks: TripTask[];
   members: { user_id: string; display_name: string; role: string }[];
 }
@@ -31,11 +32,13 @@ const PRIORITY_ORDER: Record<string, number> = {
 export function TaskListClient({
   tripId,
   isPlanner,
+  currentUserId,
   initialTasks,
   members,
 }: TaskListClientProps) {
   const [tasks, setTasks] = useState<TripTask[]>(initialTasks);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [filterMember, setFilterMember] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortMode, setSortMode] = useState<SortMode>("sort_order");
@@ -110,8 +113,13 @@ export function TaskListClient({
   async function handleAddTask(e: React.FormEvent) {
     e.preventDefault();
     if (!newTask.title.trim()) return;
+    if (newTask.title.length > 300) {
+      setError("Task title must be 300 characters or less");
+      return;
+    }
 
     setLoading(true);
+    setError(null);
     try {
       const task = await createTask(supabase, {
         trip_id: tripId,
@@ -132,8 +140,12 @@ export function TaskListClient({
         priority: "medium",
       });
       setShowAddForm(false);
-    } catch {
-      // ignore
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Couldn't add the task. Try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -298,6 +310,12 @@ export function TaskListClient({
 
   return (
     <div>
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-300 rounded-lg p-3 mb-4 text-sm">
+          {error}
+        </div>
+      )}
+
       {/* Progress Bar */}
       {total > 0 && (
         <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
@@ -749,33 +767,50 @@ export function TaskListClient({
               ) : (
                 /* Task Display */
                 <div className="flex items-start gap-3">
-                  {/* Checkbox */}
-                  <button
-                    onClick={() =>
-                      handleToggleComplete(task.id, task.is_completed)
-                    }
-                    className={`w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors mt-0.5 ${
-                      task.is_completed
-                        ? "bg-camp-forest border-camp-forest"
-                        : "border-white/30 hover:border-camp-forest"
-                    }`}
-                  >
-                    {task.is_completed && (
-                      <svg
-                        className="w-3 h-3 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={3}
+                  {/* Checkbox — planners can toggle any task; viewers can
+                     only toggle tasks assigned to themselves. Matches the
+                     RLS + trip_tasks_enforce_viewer_scope trigger. */}
+                  {(() => {
+                    const canToggle =
+                      isPlanner ||
+                      (currentUserId !== null &&
+                        task.assigned_to === currentUserId);
+                    return (
+                      <button
+                        onClick={() =>
+                          canToggle &&
+                          handleToggleComplete(task.id, task.is_completed)
+                        }
+                        disabled={!canToggle}
+                        title={
+                          canToggle
+                            ? undefined
+                            : "Only the assignee or a planner can complete this task"
+                        }
+                        className={`w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors mt-0.5 ${
+                          task.is_completed
+                            ? "bg-camp-forest border-camp-forest"
+                            : "border-white/30 hover:border-camp-forest"
+                        } ${!canToggle ? "cursor-not-allowed opacity-60" : ""}`}
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="m4.5 12.75 6 6 9-13.5"
-                        />
-                      </svg>
-                    )}
-                  </button>
+                        {task.is_completed && (
+                          <svg
+                            className="w-3 h-3 text-white"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={3}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="m4.5 12.75 6 6 9-13.5"
+                            />
+                          </svg>
+                        )}
+                      </button>
+                    );
+                  })()}
 
                   {/* Task Info */}
                   <div className="flex-1 min-w-0">

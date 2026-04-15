@@ -2,7 +2,41 @@ spec:
   id: "SPEC-009"
   name: "Guest Sharing"
   product: "PROD-001"
-  status: "draft"
+  status: "shipped"
+
+  review:
+    date: "2026-04-14"
+    summary: |
+      Retroactive deep review found FOUR CRITICAL security issues on the
+      public unauthenticated guest-share surface:
+        1. /shared/[token] used SUPABASE_SERVICE_ROLE_KEY when present,
+           bypassing ALL RLS — any bug in the query module could read or
+           write the entire database.
+        2. Guests saw ALL packing items and ALL tasks on a trip (not just
+           items assigned to them), violating EXP-030 directly.
+        3. Tokens were plaintext UUIDv4 (~122 bits, below the 128-bit
+           requirement) stored as plaintext — a DB read would expose all
+           live shares.
+        4. revokeShareLink(linkId) had no trip-scope check — any planner
+           on any trip could revoke any other trip's links by guessing
+           the link UUID.
+      The feature was taken offline in Phase 0.1 (Share button hidden,
+      /shared/[token] unconditional 404) until the rewrite landed.
+    fixes:
+      - "Migration 010: replaced plaintext token column with token_hash (SHA-256); 256-bit tokens from extensions.gen_random_bytes, base64url encoded"
+      - "Migration 010: new public.create_share_link(trip_id) RPC — generates plaintext once, stores only the hash, returns plaintext to the caller"
+      - "Migration 010: new public.revoke_share_link(link_id, trip_id) RPC — requires planner of the specified trip"
+      - "Migration 010: new public.get_shared_trip(token) SECURITY DEFINER RPC — the only anon entry point, returns exactly the scoped payload spec allows"
+      - "get_shared_trip filters packing items and tasks to assigned rows only (assigned_to is not null)"
+      - "get_shared_trip omits cost, confirmation_number, contact_info from reservations"
+      - "/shared/[token] page uses ANON client only (service role removed); calls get_shared_trip RPC"
+      - "app/shared/[token]/page.tsx: generateMetadata returns only the trip name, no description or OG image"
+      - "ShareTripButton rewritten — plaintext URL shown once at creation time, subsequent views show only metadata (revoke+regen to re-share)"
+      - "Phase 0.1 disablement reverted — Share button re-enabled"
+    deferred:
+      - "Rate limiting on /shared/[token] (needs Upstash/KV integration) — file as SPEC-009b"
+      - "Audit logging for mutation attempts on public share route — file as SPEC-009b"
+      - "Per-guest scoped share links (distinct link per guest) — file as a product question"
   owner: "Jason Robey"
   created: "2026-03-27"
 

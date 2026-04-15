@@ -32,30 +32,35 @@ export function applyOptimisticUpdate<T extends Record<string, unknown>>(
 }
 
 /**
- * Compares the server state to the optimistic state for conflict resolution.
- * - For fields NOT in pendingFields, accept server values.
- * - For fields in pendingFields where server value differs from pre-edit, flag as conflicts.
+ * Detects last-write-wins conflicts after a mutation completes.
+ *
+ * Compare the server response (what's actually in the DB now) against what
+ * we intended to write. If they differ, another writer beat us to it — the
+ * server will reflect their value and ours was overwritten. For fields we
+ * didn't touch, always accept the server value.
  */
-export function reconcileWithServer<T extends Record<string, unknown>>(
-  optimisticState: T,
-  serverState: T,
-  pendingFields: (keyof T)[]
-): { resolved: T; conflicts: (keyof T)[] } {
-  const resolved = { ...serverState } as T;
-  const conflicts: (keyof T)[] = [];
+export interface ConflictReport<T extends Record<string, unknown>> {
+  field: keyof T;
+  attemptedValue: unknown;
+  serverValue: unknown;
+}
 
-  for (const field of pendingFields) {
-    if (
-      field in serverState &&
-      field in optimisticState &&
-      serverState[field] !== optimisticState[field]
-    ) {
-      conflicts.push(field);
-    }
-    // Keep the optimistic (local) value for pending fields
-    if (field in optimisticState) {
-      (resolved as Record<string, unknown>)[field as string] =
-        optimisticState[field];
+export function reconcileWithServer<T extends Record<string, unknown>>(
+  attemptedUpdates: Partial<T>,
+  serverState: T
+): { resolved: T; conflicts: ConflictReport<T>[] } {
+  const resolved = { ...serverState } as T;
+  const conflicts: ConflictReport<T>[] = [];
+
+  for (const field of Object.keys(attemptedUpdates) as (keyof T)[]) {
+    const attempted = attemptedUpdates[field];
+    const actual = serverState[field];
+    if (attempted !== undefined && actual !== attempted) {
+      conflicts.push({
+        field,
+        attemptedValue: attempted,
+        serverValue: actual,
+      });
     }
   }
 

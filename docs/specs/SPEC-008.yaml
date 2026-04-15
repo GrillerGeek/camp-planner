@@ -2,7 +2,30 @@ spec:
   id: "SPEC-008"
   name: "Reservations, Trip History & Memories"
   product: "PROD-001"
-  status: "draft"
+  status: "shipped"
+
+  review:
+    date: "2026-04-14"
+    summary: |
+      Retroactive deep review found two HIGH-severity issues:
+        1. journal-photos storage bucket was public=true with INSERT/DELETE
+           policies that only checked bucket_id (not trip membership). Any
+           authenticated user could upload or delete any trip's photos, and
+           any URL granted read access forever.
+        2. PWA offline reservation claim (EXP-025) was pure fiction — no
+           service worker, no cache strategy, no registration code anywhere.
+      Also: history search only looks at the latest journal entry (N+1
+      query, misses older entries); no size/MIME validation on uploads.
+    fixes:
+      - "Migration 008: journal-photos bucket set to private"
+      - "Migration 008: SELECT/INSERT/DELETE policies check is_trip_member / is_trip_planner via storage.foldername(name)[1]"
+      - "Migration 008: existing photo_urls rewritten from public URLs to bare storage paths"
+      - "lib/queries/journal.ts: uploadJournalPhoto returns storage path; new getSignedJournalPhotoUrls issues 1-hour signed URLs"
+      - "JournalClient: receives initialSignedUrls and refreshes map after new uploads"
+    deferred:
+      - "PWA offline reservations (EXP-025) — file as SPEC-008b: PWA offline reservations (no service worker exists today)"
+      - "History search across all journal entries — needs tsvector or similar, file as SPEC-008b"
+      - "Upload size/MIME validation — file as SPEC-008b"
   owner: "Jason Robey"
   created: "2026-03-27"
 

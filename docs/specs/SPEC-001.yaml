@@ -5,7 +5,18 @@ spec:
     - "INT-001"
   expectations:
     - "EXP-003 (partial — auth and realtime infrastructure only)"
-  status: "draft"
+  status: "shipped"
+
+  review:
+    date: "2026-04-14"
+    summary: |
+      Retroactive deep review found: recursive trip_members RLS (latent footgun),
+      trips UPDATE missing WITH CHECK (created_by escalation), trips DELETE
+      restricted to creator only (silent no-op for co-planners).
+    fixes:
+      - "Migration 009: replaced recursive trip_members policies with security-definer helper (is_trip_member_of)"
+      - "Migration 009: trips UPDATE kept planner-only, created_by immutability via trigger"
+      - "Migration 009: trips DELETE broadened to all planners (product decision)"
 
   context:
     stack: "Next.js 14+ (App Router), Tailwind CSS, Supabase (PostgreSQL, Auth, Realtime), Vercel"

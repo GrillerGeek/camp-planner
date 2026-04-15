@@ -13,12 +13,15 @@ export default async function TripTasksPage({
   const { tripId } = await params;
   const supabase = await createClient();
 
-  const [trip, role, tasks, members] = await Promise.all([
+  const [trip, role, tasks, members, { data: userData }] = await Promise.all([
     getTripById(supabase, tripId),
     getUserRoleForTrip(supabase, tripId),
     getTripTasks(supabase, tripId),
     getTripMembers(supabase, tripId),
+    supabase.auth.getUser(),
   ]);
+
+  const currentUserId = userData.user?.id ?? null;
 
   if (!trip || !role) {
     return (
@@ -76,6 +79,7 @@ export default async function TripTasksPage({
       <TaskListClient
         tripId={tripId}
         isPlanner={isPlanner}
+        currentUserId={currentUserId}
         initialTasks={tasks}
         members={members}
       />

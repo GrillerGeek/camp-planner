@@ -2,7 +2,24 @@ spec:
   id: "SPEC-004"
   name: "Smart Packing Lists"
   product: "PROD-001"
-  status: "draft"
+  status: "shipped"
+
+  review:
+    date: "2026-04-14"
+    summary: |
+      Retroactive deep review found: viewers could click the check-off button
+      but RLS rejected the write silently; the packing realtime used an ad-hoc
+      channel inconsistent with the original shared-channel spec (now the
+      canonical pattern); trip_type matching never made it into template
+      auto-population; assigned_to is single-value, contradicting EXP-007.
+    fixes:
+      - "PackingListClient: check-off button disabled for non-planners with title tooltip"
+      - "Per-feature channel pattern adopted app-wide (see SPEC-003 review); the ad-hoc channel here is now canonical"
+      - "Packing templates confirmed as shared library — RLS already enforces owner-only writes"
+    deferred:
+      - "Multi-assignee items (EXP-007) — schema migration to uuid[], file as SPEC-004b"
+      - "trip_type matching in findMatchingTemplates — file as SPEC-004b"
+      - "checked_by/checked_at audit columns — file as SPEC-004b"
   owner: "Jason Robey"
   created: "2026-03-27"
 

@@ -2,7 +2,23 @@ spec:
   id: "SPEC-005"
   name: "Meal Planning & Recipe Library"
   product: "PROD-001"
-  status: "draft"
+  status: "shipped"
+
+  review:
+    date: "2026-04-14"
+    summary: |
+      Retroactive deep review found: recipes SELECT policy was using (true) —
+      confirmed as intentional shared-library model (product decision). AI
+      suggestion endpoints (EXP-009, EXP-010) were never implemented — the UI
+      shows a "Coming soon" toast. Recipe editing mutates past trip plans
+      (no snapshot). Recipe library lacks search, tag filter, and pagination.
+    fixes:
+      - "Recipes RLS: SELECT using(true) confirmed correct for shared library; writes already owner-only"
+    deferred:
+      - "AI meal suggestions (EXP-009, EXP-010) — file as SPEC-005b: AI meal suggestions"
+      - "Recipe snapshot on meal assignment (edit-past-plans bug) — file as SPEC-005b"
+      - "Recipe library search/filter/pagination — file as SPEC-005b"
+      - "Duplicate recipe name warning — needs unique index + error handling, file as SPEC-005b"
   owner: "Jason Robey"
   created: "2026-03-27"
 

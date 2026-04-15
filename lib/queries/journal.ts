@@ -78,20 +78,38 @@ export async function uploadJournalPhoto(
   file: File
 ): Promise<string> {
   const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
-  const fileName = `${tripId}/${crypto.randomUUID()}.${fileExt}`;
+  const path = `${tripId}/${crypto.randomUUID()}.${fileExt}`;
 
   const { error } = await supabase.storage
     .from("journal-photos")
-    .upload(fileName, file, {
+    .upload(path, file, {
       cacheControl: "3600",
       upsert: false,
     });
 
   if (error) throw error;
 
-  const { data } = supabase.storage
-    .from("journal-photos")
-    .getPublicUrl(fileName);
+  return path;
+}
 
-  return data.publicUrl;
+export async function getSignedJournalPhotoUrls(
+  supabase: SupabaseClient,
+  paths: string[],
+  ttlSeconds: number = 3600
+): Promise<Record<string, string>> {
+  if (paths.length === 0) return {};
+
+  const { data, error } = await supabase.storage
+    .from("journal-photos")
+    .createSignedUrls(paths, ttlSeconds);
+
+  if (error) throw error;
+
+  const map: Record<string, string> = {};
+  for (const item of data ?? []) {
+    if (item.path && item.signedUrl) {
+      map[item.path] = item.signedUrl;
+    }
+  }
+  return map;
 }

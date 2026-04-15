@@ -50,6 +50,7 @@ export function GroceryListClient({
   const [reconcileAdjustments, setReconcileAdjustments] = useState<
     Record<string, number>
   >({});
+  const [error, setError] = useState<string | null>(null);
 
   const supabase = createClient();
 
@@ -103,12 +104,17 @@ export function GroceryListClient({
   // Generate from meals
   async function handleGenerate() {
     setGenerating(true);
+    setError(null);
     try {
       const result = await generateGroceryListFromMeals(supabase, tripId);
       setGroceryList(result);
       setItems(result.trip_grocery_items ?? []);
-    } catch {
-      // ignore
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Couldn't generate the grocery list. Try again."
+      );
     } finally {
       setGenerating(false);
     }
@@ -244,6 +250,12 @@ export function GroceryListClient({
 
   return (
     <div>
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-300 rounded-lg p-3 mb-4 text-sm">
+          {error}
+        </div>
+      )}
+
       {/* Progress Bar */}
       {total > 0 && (
         <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">

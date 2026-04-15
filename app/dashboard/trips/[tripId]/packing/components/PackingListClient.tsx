@@ -396,11 +396,17 @@ export function PackingListClient({
                         onClick={() =>
                           handleTogglePacked(item.id, item.is_packed)
                         }
+                        disabled={!isPlanner}
+                        title={
+                          !isPlanner
+                            ? "Only planners can mark items packed"
+                            : undefined
+                        }
                         className={`w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
                           item.is_packed
                             ? "bg-camp-forest border-camp-forest"
                             : "border-white/30 hover:border-camp-forest"
-                        }`}
+                        } ${!isPlanner ? "cursor-not-allowed opacity-60" : ""}`}
                       >
                         {item.is_packed && (
                           <svg

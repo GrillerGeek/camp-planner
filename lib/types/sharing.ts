@@ -1,7 +1,7 @@
 export interface TripShareLink {
   id: string;
   trip_id: string;
-  token: string;
+  token_hash: string;
   created_by: string | null;
   created_at: string;
   revoked_at: string | null;
@@ -9,6 +9,7 @@ export interface TripShareLink {
 
 export interface SharedTripData {
   trip: {
+    id: string;
     name: string;
     destination: string;
     start_date: string;
@@ -17,9 +18,21 @@ export interface SharedTripData {
     status: string;
   };
   planner_name: string;
+  reservations: SharedReservation[];
   meals: SharedMeal[];
   packing_items: SharedPackingItem[];
   tasks: SharedTask[];
+}
+
+export interface SharedReservation {
+  id: string;
+  campground_name: string;
+  site_number: string | null;
+  check_in_date: string | null;
+  check_out_date: string | null;
+  check_in_time: string | null;
+  check_out_time: string | null;
+  notes: string | null;
 }
 
 export interface SharedMeal {
