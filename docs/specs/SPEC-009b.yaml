@@ -1,0 +1,52 @@
+spec:
+  id: "SPEC-009b"
+  name: "Guest sharing hardening: rate limiting + audit logging"
+  product: "PROD-001"
+  parent: "SPEC-009"
+  status: "backlog"
+  owner: "Jason Robey"
+  created: "2026-05-15"
+
+  origin: >
+    Items deferred from SPEC-009 retroactive deep review (2026-04-14).
+    SPEC-009 already shipped the major security rewrite (hashed tokens,
+    SECURITY DEFINER RPC, scoped payload). These are the remaining
+    defense-in-depth items for the public unauthenticated surface.
+
+  context:
+    intentions:
+      - "INT-009"
+    expectations:
+      - "EXP-029 (rate-limited public share access)"
+      - "EXP-030 (assigned-only filtering — already enforced)"
+
+  scope:
+    - id: "SPEC-009b.1"
+      summary: "Rate limiting on /shared/[token]"
+      problem: >
+        The public share endpoint is the only anonymous surface. No rate
+        limit means a leaked token or guess attempt has no friction.
+      approach_hint: >
+        Upstash Redis (or Vercel KV / Vercel Marketplace Redis) with a
+        sliding-window limiter. Key on IP + token. ~30 requests / 5 min.
+        Return 429 with retry-after. Apply in middleware.ts or directly
+        in the page route handler.
+      priority: "high"
+      reason: "Public surface — no other throttle exists."
+
+    - id: "SPEC-009b.2"
+      summary: "Audit logging for share-route mutation attempts"
+      problem: >
+        Anyone hitting the public surface with crafted requests (path
+        traversal, mutation attempts via non-RPC paths) is invisible today.
+      approach_hint: >
+        Add a public.share_audit_log table (event_type, token_hash_prefix,
+        ip, user_agent, request_path, status, ts). Insert via SECURITY
+        DEFINER RPC on the few entry points. Index by ts for retention
+        sweep. Keep 90 days then purge.
+      priority: "medium"
+
+  validation:
+    human_review:
+      - "Curl /shared/{token} 40 times in 5 min — gets 429 after threshold"
+      - "Audit table grows on each share-view; sweep job removes rows older than 90 days"

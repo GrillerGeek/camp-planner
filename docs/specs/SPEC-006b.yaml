@@ -1,0 +1,68 @@
+spec:
+  id: "SPEC-006b"
+  name: "Grocery + inventory follow-ups: units, auto-regen, dedupe, reconcile"
+  product: "PROD-001"
+  parent: "SPEC-006"
+  status: "backlog"
+  owner: "Jason Robey"
+  created: "2026-05-15"
+
+  origin: >
+    Items deferred from SPEC-006 retroactive deep review (2026-04-14).
+
+  context:
+    intentions:
+      - "INT-004"
+      - "INT-005"
+
+  scope:
+    - id: "SPEC-006b.1"
+      summary: "Unit-family bucketing"
+      problem: >
+        Generation silently sums incompatible units (e.g., 2 cups + 1 lb is
+        treated as 3). Either bucket by unit family (volume, weight, count)
+        or refuse to combine across families and emit separate rows.
+      approach_hint: >
+        Define unit families in a small constants module. On aggregation,
+        group ingredient + unit_family separately. Emit one grocery row per
+        (ingredient, unit_family).
+      priority: "high"
+      reason: "Correctness — current behavior produces wrong shopping lists."
+
+    - id: "SPEC-006b.2"
+      summary: "Auto-regenerate grocery list on meal plan change"
+      problem: >
+        Editing meals after generating a grocery list doesn't refresh the
+        list. Users must remember to re-generate.
+      approach_hint: >
+        On meal_plan_entries mutation, mark the trip's grocery list stale
+        with a banner: "Meal plan changed since last generated. Regenerate?"
+        Don't auto-overwrite manual additions — confirm first.
+      priority: "medium"
+
+    - id: "SPEC-006b.3"
+      summary: "Dedupe of manual grocery additions vs generated rows"
+      problem: >
+        Manual adds today can duplicate auto-generated rows for the same
+        ingredient. No merge logic.
+      approach_hint: >
+        On generate, fold manual rows with same (name, unit) into the
+        generated row (sum quantities). Preserve manual flag for UX.
+      priority: "medium"
+
+    - id: "SPEC-006b.4"
+      summary: "Reconcile: add-to-inventory for newly-purchased items"
+      problem: >
+        After shopping, items checked off the grocery list don't update the
+        camper inventory automatically. Users repeat the work.
+      approach_hint: >
+        On grocery_item.purchased=true, prompt: "Add to camper inventory?"
+        with a one-tap confirm. Map ingredient -> inventory item by name
+        with override on conflict.
+      priority: "medium"
+
+  validation:
+    human_review:
+      - "Plan meals using 2 cups flour + 1 lb flour; grocery list shows two separate rows, not 3 of something"
+      - "Edit a meal after generating; banner appears prompting regeneration"
+      - "Check off purchased items; inventory updates with new quantities"

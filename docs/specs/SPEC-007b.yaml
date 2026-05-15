@@ -1,0 +1,55 @@
+spec:
+  id: "SPEC-007b"
+  name: "Task follow-ups: template provenance, relative due dates, dup-apply warning"
+  product: "PROD-001"
+  parent: "SPEC-007"
+  status: "backlog"
+  owner: "Jason Robey"
+  created: "2026-05-15"
+
+  origin: >
+    Items deferred from SPEC-007 retroactive deep review (2026-04-14).
+
+  context:
+    intentions:
+      - "INT-006"
+
+  scope:
+    - id: "SPEC-007b.1"
+      summary: "template_source_id on trip_tasks (provenance tracking)"
+      problem: >
+        When a task template is applied, the resulting trip_tasks lose the
+        link to their source template. Re-applying the same template
+        silently duplicates tasks.
+      approach_hint: >
+        Migration: trip_tasks.template_source_id uuid (fk task_template_items,
+        on delete set null). applyTemplate inserts with this set. The
+        duplicate-apply-template warning (SPEC-007b.3) reads from this.
+      priority: "medium"
+
+    - id: "SPEC-007b.2"
+      summary: "relative_due_days and priority on task_template_items"
+      problem: >
+        Template items today are just titles. No way to say "7 days before
+        trip" or mark a priority. Every application requires manual editing.
+      approach_hint: >
+        Migration: task_template_items add relative_due_days int (negative =
+        before trip start, positive = after) and priority text. applyTemplate
+        computes due_date = trip.start_date + relative_due_days.
+      priority: "medium"
+
+    - id: "SPEC-007b.3"
+      summary: "Duplicate-apply-template warning"
+      problem: >
+        Applying the same template twice silently creates duplicate tasks.
+      approach_hint: >
+        On apply, check trip_tasks where template_source_id IN (template's
+        item ids). If any exist, prompt: "This template was already applied.
+        Apply again anyway?"
+      priority: "low"
+      depends_on: ["SPEC-007b.1"]
+
+  validation:
+    human_review:
+      - "Apply template, see tasks. Apply same template again — warning prompt appears."
+      - "Template item set to 'priority: high, relative_due_days: -7' on a trip starting 2026-06-01 produces a task due 2026-05-25, high priority."

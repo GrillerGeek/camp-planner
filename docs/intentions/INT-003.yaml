@@ -14,4 +14,9 @@ intention:
   dependencies:
     - "INT-001"
   owner: "Jason Robey"
-  status: "draft"
+  status: "shipped"
+  shipped_in:
+    - "SPEC-005"
+  notes: >
+    AI-powered suggestions portion (EXP-009, EXP-010) is stubbed in the UI
+    and deferred to SPEC-005b.

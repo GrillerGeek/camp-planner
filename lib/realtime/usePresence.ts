@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRealtimeContext } from "./RealtimeProvider";
 
 export interface PresenceUser {
@@ -27,7 +27,6 @@ interface UsePresenceOptions {
 export function usePresence(options: UsePresenceOptions) {
   const { channel } = useRealtimeContext();
   const [presentUsers, setPresentUsers] = useState<PresenceUser[]>([]);
-  const [isTracking, setIsTracking] = useState(false);
   const lastTrackRef = useRef(0);
   const trackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -51,27 +50,35 @@ export function usePresence(options: UsePresenceOptions) {
     setPresentUsers(users);
   }, [channel]);
 
-  const throttledTrack = useCallback(() => {
+  const trackNow = useCallback(() => {
     if (!channel) return;
+    lastTrackRef.current = Date.now();
+    channel.track({
+      user_id: options.userId,
+      display_name: options.displayName,
+      avatar_url: options.avatarUrl,
+      online_at: new Date().toISOString(),
+    });
+  }, [channel, options.userId, options.displayName, options.avatarUrl]);
 
-    const now = Date.now();
-    const elapsed = now - lastTrackRef.current;
+  // Keep latest trackNow in a ref so the trailing-edge timeout always uses
+  // the latest options instead of a stale closure.
+  const trackNowRef = useRef(trackNow);
+  useEffect(() => {
+    trackNowRef.current = trackNow;
+  }, [trackNow]);
 
+  const throttledTrack = useCallback(() => {
+    const elapsed = Date.now() - lastTrackRef.current;
     if (elapsed >= 2000) {
-      lastTrackRef.current = now;
-      channel.track({
-        user_id: options.userId,
-        display_name: options.displayName,
-        avatar_url: options.avatarUrl,
-        online_at: new Date().toISOString(),
-      });
+      trackNowRef.current();
     } else if (!trackTimeoutRef.current) {
       trackTimeoutRef.current = setTimeout(() => {
         trackTimeoutRef.current = null;
-        throttledTrack();
+        trackNowRef.current();
       }, 2000 - elapsed);
     }
-  }, [channel, options.userId, options.displayName, options.avatarUrl]);
+  }, []);
 
   useEffect(() => {
     if (!channel) return;
@@ -87,9 +94,7 @@ export function usePresence(options: UsePresenceOptions) {
         syncPresenceState();
       });
 
-    // Track the current user
     throttledTrack();
-    setIsTracking(true);
 
     return () => {
       if (trackTimeoutRef.current) {
@@ -97,9 +102,8 @@ export function usePresence(options: UsePresenceOptions) {
         trackTimeoutRef.current = null;
       }
       channel.untrack();
-      setIsTracking(false);
     };
   }, [channel, syncPresenceState, throttledTrack]);
 
-  return { presentUsers, isTracking };
+  return { presentUsers };
 }

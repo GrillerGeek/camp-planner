@@ -1,0 +1,84 @@
+spec:
+  id: "SPEC-005b"
+  name: "Meal planning follow-ups: AI suggestions, recipe snapshots, library UX"
+  product: "PROD-001"
+  parent: "SPEC-005"
+  status: "backlog"
+  owner: "Jason Robey"
+  created: "2026-05-15"
+
+  origin: >
+    Items deferred from SPEC-005 retroactive deep review (2026-04-14).
+    NOTE: AI meal suggestions are advertised in INT-003 but currently stubbed
+    as a "Coming soon" toast. Closing this gap removes a fictional feature.
+
+  context:
+    intentions:
+      - "INT-003"
+    expectations:
+      - "EXP-008 (recipe library)"
+      - "EXP-009 (AI suggestions — currently stubbed)"
+      - "EXP-010 (local-flavor suggestions — currently stubbed)"
+
+  scope:
+    - id: "SPEC-005b.1"
+      summary: "AI meal suggestions (EXP-009)"
+      problem: >
+        Suggest meal/recipe choices based on past favorites, trip history,
+        and destination/season. UI shows a "Coming soon" toast today.
+      approach_hint: >
+        Use Vercel AI Gateway via "anthropic/claude-sonnet-4-6" (per CLAUDE
+        knowledge cutoff). Server action gathers context (recent trips, top
+        recipes, destination, season) and asks for N suggestions matching
+        the trip context, returning structured JSON via tool use or
+        generateObject. Cache per-trip suggestions for 24h.
+      priority: "high"
+      reason: "Closes a fictional feature gap and is core to INT-003."
+
+    - id: "SPEC-005b.2"
+      summary: "Local-flavor suggestions (EXP-010)"
+      problem: >
+        Same as above, scoped to suggestions inspired by the destination
+        region's local cuisine.
+      approach_hint: >
+        Same Gateway endpoint with a different system prompt + destination
+        as the primary signal. May piggyback on SPEC-005b.1's endpoint.
+      priority: "medium"
+
+    - id: "SPEC-005b.3"
+      summary: "Recipe snapshot on meal assignment"
+      problem: >
+        Editing a recipe today mutates the version shown on past trips —
+        history becomes a lie. Should snapshot the recipe at assignment time.
+      approach_hint: >
+        Add meal_plan_entries.recipe_snapshot jsonb. On assignment, copy
+        ingredients + instructions into the snapshot. Recipe library page
+        edits do not touch the snapshot. Pre-trip view reads live recipe,
+        post-trip view reads snapshot.
+      priority: "medium"
+
+    - id: "SPEC-005b.4"
+      summary: "Recipe library search + filter + pagination"
+      problem: >
+        The recipe library has no search, no tag filter, and no pagination.
+        Will become unusable past ~50 recipes.
+      approach_hint: >
+        Server-side query with ilike(name) + tag overlap + range(). Tag
+        chip-filter UI on top of the existing grid.
+      priority: "low"
+
+    - id: "SPEC-005b.5"
+      summary: "Duplicate recipe name warning"
+      problem: >
+        Two recipes can share the same name with no warning.
+      approach_hint: >
+        Optional partial unique index on (owner_id, lower(name)) or warning
+        toast on save. The library is shared (RLS using true) so cross-user
+        dup names are fine — only warn within a single owner.
+      priority: "low"
+
+  validation:
+    human_review:
+      - "AI: open a trip, request meal suggestions; receive 5 plausible suggestions matching season + destination within 10s"
+      - "Snapshot: edit an old trip's assigned recipe ingredients; the trip's meal plan view does not change"
+      - "Search: type 'chili' in recipe library; results filter live"

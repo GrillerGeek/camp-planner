@@ -12,4 +12,7 @@ intention:
   priority: "critical"
   dependencies: []
   owner: "Jason Robey"
-  status: "draft"
+  status: "shipped"
+  shipped_in:
+    - "SPEC-001"
+    - "SPEC-002"

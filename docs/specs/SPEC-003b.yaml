@@ -1,0 +1,64 @@
+spec:
+  id: "SPEC-003b"
+  name: "Realtime hardening: cross-trip presence authz + tab-refocus re-sync"
+  product: "PROD-001"
+  parent: "SPEC-003"
+  status: "backlog"
+  owner: "Jason Robey"
+  created: "2026-05-15"
+
+  origin: >
+    Items deferred from SPEC-003 retroactive deep review (2026-04-14).
+    Promoted to a real backlog spec stub so they are greppable and schedulable
+    instead of buried in the parent spec's deferred: block.
+
+  context:
+    intentions:
+      - "INT-001"
+    expectations:
+      - "EXP-003 (partial — channel auth + tab-refocus recovery only)"
+    stack: "Next.js 16+ (App Router), Supabase (Postgres, Auth, Realtime), Vercel"
+
+  scope:
+    - id: "SPEC-003b.1"
+      summary: "Supabase Realtime channel authorization for presence channels"
+      problem: >
+        Today, any authenticated user who guesses or learns a trip UUID can
+        subscribe to its presence:{tripId} channel and observe who is viewing
+        the trip. RLS on the trips/trip_members tables protects Postgres-change
+        events, but presence broadcasts go through realtime.messages, which
+        is currently world-readable for authenticated users.
+      approach_hint: >
+        Configure private channels (channel.subscribe with broadcast and
+        presence config) and add an RLS policy on realtime.messages keyed off
+        the topic, requiring is_trip_member_of(topic_to_uuid(topic)).
+      priority: "high"
+      reason: "Security — quietly leaks viewing activity between trips."
+
+    - id: "SPEC-003b.2"
+      summary: "Tab-refocus re-sync logic"
+      problem: >
+        useConnectionRecovery existed in SPEC-003 but was wired only into an
+        orphaned TripDetailClient.tsx and was deleted during the retro fix.
+        On long backgrounding (>30s), the local trip row can drift from
+        server state with no re-fetch on refocus.
+      approach_hint: >
+        Decide whether visibility-based re-fetch is still needed given the
+        per-feature channel pattern. Per-feature clients already handle their
+        own postgres_changes; trip-row drift specifically is what's exposed.
+        Likely: a small useEffect in useRealtimeTrip listening for
+        visibilitychange and re-running the loader. Re-scope before building.
+      priority: "low"
+      reason: "Quality-of-life — not user-blocking, no security implications."
+
+  deliverables:
+    - "Migration adding RLS policy on realtime.messages scoped by topic UUID"
+    - "RealtimeProvider switched to private presence channel with .subscribe({ config: { presence: { key }, broadcast: { ack: true, self: false } } })"
+    - "Optional: trip-row re-sync on visibilitychange in useRealtimeTrip"
+
+  validation:
+    automated:
+      - "Manual SQL test: a non-member's REALTIME subscribe to presence:{tripId} returns CHANNEL_ERROR or auth failure"
+    human_review:
+      - "Open same trip in two browsers; presence works as before for members"
+      - "From a second account that is NOT a member, attempt to subscribe with raw client — must fail"

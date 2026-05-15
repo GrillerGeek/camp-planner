@@ -1,0 +1,65 @@
+spec:
+  id: "SPEC-008b"
+  name: "Reservations + history follow-ups: PWA offline, full-trip search, upload validation"
+  product: "PROD-001"
+  parent: "SPEC-008"
+  status: "backlog"
+  owner: "Jason Robey"
+  created: "2026-05-15"
+
+  origin: >
+    Items deferred from SPEC-008 retroactive deep review (2026-04-14).
+    NOTE: PWA offline reservations (EXP-025) was advertised but never built
+    — no service worker exists today. This stub closes the fiction.
+
+  context:
+    intentions:
+      - "INT-007"
+      - "INT-008"
+    expectations:
+      - "EXP-025 (PWA offline reservation claim — currently unimplemented)"
+
+  scope:
+    - id: "SPEC-008b.1"
+      summary: "PWA offline reservations (EXP-025)"
+      problem: >
+        Trip reservations should be viewable offline at the campsite where
+        cell coverage drops. Manifest.json exists but there is no service
+        worker, no cache strategy, no install prompt — the PWA is in name only.
+      approach_hint: >
+        Add next-pwa or workbox via @serwist/next. Cache trip detail page,
+        reservations, packing list, meal plan with cache-first strategy.
+        Add /offline fallback page. Register SW in root layout. Test on
+        actual phone with airplane mode.
+      priority: "high"
+      reason: "Removes a fictional feature; real value at campsites."
+      complexity: "Large — service worker, install prompt, caching strategy, offline-first UX states."
+
+    - id: "SPEC-008b.2"
+      summary: "History search across all journal entries"
+      problem: >
+        Trip history search today only looks at the latest journal entry
+        per trip (N+1 query, misses older entries).
+      approach_hint: >
+        Migration: add tsvector column to journal_entries with trigger.
+        Replace the latest-entry query with a search across all entries.
+        UI: highlight matching snippets.
+      priority: "medium"
+
+    - id: "SPEC-008b.3"
+      summary: "Upload size + MIME validation for journal photos"
+      problem: >
+        Photo uploads accept arbitrary size and type. Bucket could fill or
+        get exotic files.
+      approach_hint: >
+        Client-side: reject > 10MB, validate MIME against image/jpeg|png|webp|heic
+        before upload. Server-side: storage bucket policy with size limit
+        and allowed_mime_types in the bucket config.
+      priority: "high"
+      reason: "Security/abuse — paired with the SPEC-008 storage lockdown."
+
+  validation:
+    human_review:
+      - "PWA: install app on phone, enter airplane mode, open the trip, see reservation details + packing list"
+      - "Search: log entries on trip A: 'great firewood'. Trip B newer with no match. Search 'firewood' finds trip A"
+      - "Upload: try a 20MB PDF — rejected client-side with clear error"

@@ -16,4 +16,6 @@ intention:
     - "INT-002"
     - "INT-006"
   owner: "Jason Robey"
-  status: "draft"
+  status: "shipped"
+  shipped_in:
+    - "SPEC-009"

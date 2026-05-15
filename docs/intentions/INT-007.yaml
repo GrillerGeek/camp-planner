@@ -13,4 +13,9 @@ intention:
   dependencies:
     - "INT-001"
   owner: "Jason Robey"
-  status: "draft"
+  status: "shipped"
+  shipped_in:
+    - "SPEC-008"
+  notes: >
+    Reservations CRUD shipped. PWA offline reservation claim (EXP-025) was
+    advertised but never built — deferred to SPEC-008b.

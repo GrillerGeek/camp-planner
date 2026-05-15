@@ -1,0 +1,59 @@
+spec:
+  id: "SPEC-004b"
+  name: "Packing list follow-ups: multi-assignee, trip_type matching, audit columns"
+  product: "PROD-001"
+  parent: "SPEC-004"
+  status: "backlog"
+  owner: "Jason Robey"
+  created: "2026-05-15"
+
+  origin: >
+    Items deferred from SPEC-004 retroactive deep review (2026-04-14).
+
+  context:
+    intentions:
+      - "INT-002"
+    expectations:
+      - "EXP-004"
+      - "EXP-007 (multi-assignee — currently violated)"
+
+  scope:
+    - id: "SPEC-004b.1"
+      summary: "Multi-assignee packing items (EXP-007 compliance)"
+      problem: >
+        packing_items.assigned_to is a single uuid, contradicting EXP-007
+        which requires items to be assignable to multiple trip members.
+        Today the UI silently picks the first.
+      approach_hint: >
+        Migration: packing_items.assigned_to uuid -> assigned_to uuid[].
+        Update PackingListClient assignment picker to multi-select. Update
+        guest-share filter (currently `assigned_to is not null` and `= guest`)
+        to use array containment.
+      priority: "medium"
+
+    - id: "SPEC-004b.2"
+      summary: "trip_type matching in findMatchingTemplates"
+      problem: >
+        findMatchingTemplates today matches on season + duration but ignores
+        trip_type. INT-002 specifically calls out trip-type-aware templates
+        as the value prop.
+      approach_hint: >
+        Extend the template metadata to carry trip_type, add the filter to
+        findMatchingTemplates, and surface trip_type in the templates editor.
+      priority: "medium"
+
+    - id: "SPEC-004b.3"
+      summary: "checked_by + checked_at audit columns"
+      problem: >
+        Today only checked: boolean is stored. No way to show "Angie checked
+        this off 5 min ago" in the UI or in trip history.
+      approach_hint: >
+        Migration: add checked_by uuid (fk profiles) + checked_at timestamptz.
+        Populate from the check-off mutation. Render in tooltip or sidebar.
+      priority: "low"
+
+  validation:
+    human_review:
+      - "Multi-assignee: assign an item to both planners; both see it on their share view"
+      - "Templates: create a tent-camping template, switch trip to RV; template is not auto-applied"
+      - "Audit: check off an item, hover the row, see 'Checked by Jason at 3:42 PM'"

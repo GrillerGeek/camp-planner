@@ -14,4 +14,6 @@ intention:
   dependencies:
     - "INT-001"
   owner: "Jason Robey"
-  status: "draft"
+  status: "shipped"
+  shipped_in:
+    - "SPEC-008"
