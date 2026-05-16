@@ -4,18 +4,13 @@ import type { ReactNode } from "react";
 import {
   RealtimeProvider,
   useRealtimeContext,
+  type PresenceProfile,
 } from "@/lib/realtime/RealtimeProvider";
 import { PresenceAvatars } from "./PresenceAvatars";
 
-interface Profile {
-  id: string;
-  display_name: string | null;
-  avatar_url: string | null;
-}
-
 interface TripRealtimeShellProps {
   tripId: string;
-  profile: Profile | null;
+  profile: PresenceProfile | null;
   children: ReactNode;
 }
 
@@ -39,15 +34,11 @@ export function TripRealtimeShell({
   children,
 }: TripRealtimeShellProps) {
   return (
-    <RealtimeProvider tripId={tripId}>
+    <RealtimeProvider tripId={tripId} profile={profile}>
       <ConnectivityBanner />
       {profile && (
         <div className="flex justify-end mb-3">
-          <PresenceAvatars
-            userId={profile.id}
-            displayName={profile.display_name ?? "Trip member"}
-            avatarUrl={profile.avatar_url}
-          />
+          <PresenceAvatars />
         </div>
       )}
       {children}

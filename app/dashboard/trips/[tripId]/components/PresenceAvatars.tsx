@@ -4,9 +4,6 @@ import { usePresence, type PresenceUser } from "@/lib/realtime/usePresence";
 
 const MAX_VISIBLE = 5;
 
-/**
- * Derives a consistent color from a user_id hash.
- */
 function getColorFromId(userId: string): string {
   const colors = [
     "bg-blue-500",
@@ -26,9 +23,6 @@ function getColorFromId(userId: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-/**
- * Extracts initials from a display name (up to 2 characters).
- */
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/);
   if (parts.length >= 2) {
@@ -37,22 +31,8 @@ function getInitials(name: string): string {
   return name.slice(0, 2).toUpperCase();
 }
 
-interface PresenceAvatarsProps {
-  userId: string;
-  displayName: string;
-  avatarUrl: string | null;
-}
-
-export function PresenceAvatars({
-  userId,
-  displayName,
-  avatarUrl,
-}: PresenceAvatarsProps) {
-  const { presentUsers } = usePresence({
-    userId,
-    displayName,
-    avatarUrl,
-  });
+export function PresenceAvatars() {
+  const { presentUsers } = usePresence();
 
   if (presentUsers.length === 0) return null;
 
@@ -91,9 +71,7 @@ function AvatarBubble({ user }: { user: PresenceUser }) {
           </span>
         </div>
       )}
-      {/* Green online indicator */}
       <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 border-2 border-camp-night rounded-full" />
-      {/* Tooltip */}
       <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-black/80 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
         {user.display_name}
       </span>
