@@ -18,6 +18,8 @@ spec:
   scope:
     - id: "SPEC-006b.1"
       summary: "Unit-family bucketing"
+      status: "shipped"
+      shipped_on: "2026-05-15"
       problem: >
         Generation silently sums incompatible units (e.g., 2 cups + 1 lb is
         treated as 3). Either bucket by unit family (volume, weight, count)
@@ -28,6 +30,15 @@ spec:
         (ingredient, unit_family).
       priority: "high"
       reason: "Correctness — current behavior produces wrong shopping lists."
+      implementation: >
+        lib/queries/grocery.ts: added getUnitFamily() (weight via TO_GRAMS,
+        volume via TO_ML, "count" for empty unit, otherwise unit name itself
+        — each container type is its own family). Aggregation map keyed by
+        aggKey(name, family) instead of just name. Inventory subtraction
+        looks up the same composite key, so "5 lbs flour" inventory no
+        longer offsets a "2 cups flour" recipe ingredient. Purchased-state
+        carryover across regeneration also keyed by (name, family) so a
+        purchased volume row doesn't poison a new weight row.
 
     - id: "SPEC-006b.2"
       summary: "Auto-regenerate grocery list on meal plan change"

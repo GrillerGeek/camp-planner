@@ -79,6 +79,22 @@ function convertQuantity(
   return null; // incompatible units
 }
 
+// Unit families bucket together units that can be summed via convertQuantity.
+// Within a family, quantities convert cleanly; across families they cannot,
+// so we emit separate grocery rows. Containers (cans, bottles, bags...) each
+// get their own family — "2 cans tomato sauce" should not merge with
+// "1 bottle tomato sauce" because they describe distinct products.
+function getUnitFamily(normalizedUnit: string): string {
+  if (normalizedUnit === "") return "count";
+  if (TO_GRAMS[normalizedUnit] !== undefined) return "weight";
+  if (TO_ML[normalizedUnit] !== undefined) return "volume";
+  return normalizedUnit;
+}
+
+function aggKey(normalizedName: string, family: string): string {
+  return `${normalizedName}|${family}`;
+}
+
 function normalizeIngredientName(name: string): string {
   return name.toLowerCase().trim();
 }
@@ -136,6 +152,7 @@ async function getOrCreateGroceryList(
 interface AggregatedIngredient {
   name: string;
   normalizedName: string;
+  family: string;
   quantity: number;
   unit: string;
   category: string;
@@ -158,9 +175,13 @@ export async function generateGroceryListFromMeals(
   const manualItems = (existingItems ?? []).filter(
     (item: GroceryItem) => item.is_manual
   );
+  // Preserve purchased state across regeneration, keyed by (name, family) so
+  // a "2 cups flour" purchase isn't accidentally inherited by "1 lb flour".
   const purchasedMap = new Map<string, boolean>();
   (existingItems ?? []).forEach((item: GroceryItem) => {
-    purchasedMap.set(normalizeIngredientName(item.name), item.is_purchased);
+    const normName = normalizeIngredientName(item.name);
+    const family = getUnitFamily(normalizeUnit(item.unit));
+    purchasedMap.set(aggKey(normName, family), item.is_purchased);
   });
 
   // 3. Get trip meals with linked recipes
@@ -191,20 +212,15 @@ export async function generateGroceryListFromMeals(
           if (!ing.name) continue;
           const normName = normalizeIngredientName(ing.name);
           const unit = normalizeUnit(ing.unit);
+          const family = getUnitFamily(unit);
           const qty = Number(ing.quantity) || 1;
+          const key = aggKey(normName, family);
 
-          const existing = aggregated.get(normName);
+          const existing = aggregated.get(key);
           if (existing) {
-            // Try to convert and add
+            // Same family — convertQuantity will always have a path.
             const converted = convertQuantity(qty, unit, existing.unit);
-            if (converted !== null) {
-              existing.quantity += converted;
-            } else if (unit && !existing.unit) {
-              existing.quantity += qty;
-              existing.unit = unit;
-            } else {
-              existing.quantity += qty;
-            }
+            existing.quantity += converted ?? qty;
             if (
               recipe.name &&
               !existing.sourceRecipes.includes(recipe.name)
@@ -212,11 +228,12 @@ export async function generateGroceryListFromMeals(
               existing.sourceRecipes.push(recipe.name);
             }
           } else {
-            aggregated.set(normName, {
+            aggregated.set(key, {
               name: ing.name,
               normalizedName: normName,
+              family,
               quantity: qty,
-              unit: unit,
+              unit,
               category: ing.category || "Other",
               sourceRecipes: recipe.name ? [recipe.name] : [],
             });
@@ -245,22 +262,21 @@ export async function generateGroceryListFromMeals(
       if (invItem.expiration_date && invItem.expiration_date < today) continue;
 
       const normName = normalizeIngredientName(invItem.name);
-      const agg = aggregated.get(normName);
-      if (!agg) continue;
-
       const invUnit = normalizeUnit(invItem.unit);
+      const invFamily = getUnitFamily(invUnit);
       const invQty = Number(invItem.quantity) || 0;
+      const key = aggKey(normName, invFamily);
+
+      const agg = aggregated.get(key);
+      if (!agg) continue; // No matching family bucket — leave other families alone
 
       const converted = convertQuantity(invQty, invUnit, agg.unit);
-      if (converted !== null) {
-        agg.quantity -= converted;
-      } else if (!invUnit || !agg.unit) {
-        agg.quantity -= invQty;
-      }
-      // If units are incompatible, don't subtract
+      // Same family means conversion has a path; fall back to raw subtract
+      // only if convert returns null (shouldn't happen within a family).
+      agg.quantity -= converted ?? invQty;
 
       if (agg.quantity <= 0) {
-        aggregated.delete(normName);
+        aggregated.delete(key);
       }
     }
   }
@@ -277,7 +293,8 @@ export async function generateGroceryListFromMeals(
   let sortOrder = 0;
 
   for (const agg of aggregated.values()) {
-    const prevPurchased = purchasedMap.get(agg.normalizedName) ?? false;
+    const prevPurchased =
+      purchasedMap.get(aggKey(agg.normalizedName, agg.family)) ?? false;
     newItems.push({
       grocery_list_id: groceryList.id,
       name: agg.name,
