@@ -130,3 +130,118 @@ export async function getUserRoleForTrip(
   if (error) return null;
   return data?.role ?? null;
 }
+
+// ============================================================
+// Member management (SPEC-002b)
+// ============================================================
+
+export interface TripMemberDetailed {
+  id: string;
+  user_id: string;
+  role: "planner" | "viewer";
+  joined_at: string;
+  display_name: string;
+  email: string;
+  avatar_url: string | null;
+  is_creator: boolean;
+}
+
+export async function getTripMembersDetailed(
+  supabase: SupabaseClient,
+  tripId: string
+): Promise<TripMemberDetailed[]> {
+  const [{ data: members, error }, { data: trip }] = await Promise.all([
+    supabase
+      .from("trip_members")
+      .select(
+        "id, user_id, role, joined_at, profiles(display_name, email, avatar_url)"
+      )
+      .eq("trip_id", tripId)
+      .order("joined_at", { ascending: true }),
+    supabase.from("trips").select("created_by").eq("id", tripId).single(),
+  ]);
+
+  if (error) throw error;
+
+  const creatorId = trip?.created_by ?? null;
+  return (members ?? []).map(
+    (m: {
+      id: string;
+      user_id: string;
+      role: "planner" | "viewer";
+      joined_at: string;
+      profiles:
+        | { display_name: string; email: string; avatar_url: string | null }[]
+        | { display_name: string; email: string; avatar_url: string | null }
+        | null;
+    }) => {
+      const profile = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
+      return {
+        id: m.id,
+        user_id: m.user_id,
+        role: m.role,
+        joined_at: m.joined_at,
+        display_name: profile?.display_name ?? "Unknown",
+        email: profile?.email ?? "",
+        avatar_url: profile?.avatar_url ?? null,
+        is_creator: m.user_id === creatorId,
+      };
+    }
+  );
+}
+
+export async function findProfileByEmail(
+  supabase: SupabaseClient,
+  email: string
+): Promise<{
+  id: string;
+  display_name: string;
+  email: string;
+  avatar_url: string | null;
+} | null> {
+  // ilike with no wildcards = case-insensitive equality. Supabase auth
+  // tends to lowercase emails but we don't depend on it.
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, display_name, email, avatar_url")
+    .ilike("email", email.trim())
+    .maybeSingle();
+
+  if (error) return null;
+  return data;
+}
+
+export async function addTripMember(
+  supabase: SupabaseClient,
+  tripId: string,
+  userId: string,
+  role: "planner" | "viewer"
+): Promise<void> {
+  const { error } = await supabase
+    .from("trip_members")
+    .insert({ trip_id: tripId, user_id: userId, role });
+  if (error) throw error;
+}
+
+export async function updateMemberRole(
+  supabase: SupabaseClient,
+  memberId: string,
+  role: "planner" | "viewer"
+): Promise<void> {
+  const { error } = await supabase
+    .from("trip_members")
+    .update({ role })
+    .eq("id", memberId);
+  if (error) throw error;
+}
+
+export async function removeMember(
+  supabase: SupabaseClient,
+  memberId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("trip_members")
+    .delete()
+    .eq("id", memberId);
+  if (error) throw error;
+}

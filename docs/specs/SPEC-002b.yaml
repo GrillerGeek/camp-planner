@@ -1,0 +1,123 @@
+spec:
+  id: "SPEC-002b"
+  name: "Trip member management UI"
+  product: "PROD-001"
+  parent: "SPEC-002"
+  status: "shipped"
+  shipped_on: "2026-05-16"
+  owner: "Jason Robey"
+  created: "2026-05-16"
+
+  origin: >
+    Gap identified during the 2026-05-16 working session: PROD-001 names
+    Jason AND Angie as the primary users with "full edit/plan/assign
+    capabilities with real-time sync between them," but SPEC-002 only
+    auto-inserts the trip creator as planner. There is no in-app way for
+    a planner to add a co-planner or a viewer. trip_members RLS already
+    supports add/update/remove (migrations 001 + 009 + helpers); the gap
+    is purely UI + a handful of query helpers.
+
+  context:
+    intentions:
+      - "INT-001"
+    expectations:
+      - "EXP-002 (extended — member CRUD beyond auto-insert of creator)"
+
+  scope:
+    - id: "SPEC-002b.1"
+      summary: "Member-management query helpers"
+      status: "shipped"
+      shipped_on: "2026-05-16"
+      implementation: >
+        lib/queries/trips.ts: added TripMemberDetailed type plus
+        getTripMembersDetailed (joins profiles + is_creator flag derived
+        from trips.created_by), findProfileByEmail (case-insensitive via
+        ilike), addTripMember, updateMemberRole, removeMember.
+      problem: >
+        Today lib/queries/trips.ts has createTrip (auto-inserts creator as
+        planner) and getUserRoleForTrip (read). No write helpers exist for
+        adding, role-changing, or removing members.
+      approach_hint: >
+        Add findProfileByEmail (exact match on profiles.email),
+        getTripMembersDetailed (members with display_name + email + avatar +
+        role + joined_at + is_creator flag), addTripMember,
+        updateMemberRole, removeMember. RLS already enforces planner-only
+        writes and protects the trip creator from removal.
+      priority: "high"
+
+    - id: "SPEC-002b.2"
+      summary: "Members page route and UI"
+      status: "shipped"
+      shipped_on: "2026-05-16"
+      implementation: >
+        app/dashboard/trips/[tripId]/members/page.tsx: server page fetches
+        trip + role + members in parallel, shows 404-ish state on miss.
+        components/MembersClient.tsx: list with avatar + display_name +
+        email + creator badge. Planner controls per row: role dropdown,
+        Remove button (omitted for creator). Add-member flow uses a
+        lookup-then-confirm pattern with explicit role pick; surfaces a
+        "user must sign in once first" hint on email miss.
+      problem: >
+        No UI exists for managing trip members.
+      approach_hint: >
+        New route /dashboard/trips/[tripId]/members. Server page fetches
+        members + current user role. Client component renders the list with
+        per-row controls for planners (role toggle, remove), shows read-only
+        list for viewers. Add-member form: email input, lookup, then
+        confirm with role picker. Surface a clear "user must sign in once
+        before being added" hint when email lookup misses.
+      priority: "high"
+
+    - id: "SPEC-002b.3"
+      summary: "Discoverability link from TripHeader"
+      status: "shipped"
+      shipped_on: "2026-05-16"
+      implementation: >
+        TripHeader: Members link is now visible to all members (planners
+        and viewers), alongside the planner-only Share/Edit/Delete cluster.
+      problem: >
+        A page that nobody can find is no page at all.
+      approach_hint: >
+        Add a Members link with member-count badge in TripHeader, visible
+        to all members (planners and viewers).
+      priority: "high"
+
+    - id: "SPEC-002b.4"
+      summary: "Real-time sync on member changes"
+      status: "shipped"
+      shipped_on: "2026-05-16"
+      implementation: >
+        MembersClient subscribes to a per-feature channel
+        trip_members:${tripId} on postgres_changes, filtered by trip_id.
+        Handlers registered before subscribe (canonical pattern). On any
+        event, refetches the full list via getTripMembersDetailed — the
+        dataset is small enough that this is simpler than reconciling
+        per-event INSERT/UPDATE/DELETE payloads (postgres_changes does
+        not include joined profile data).
+      problem: >
+        Adds/removes should propagate to other connected planners without
+        manual refresh — consistent with the trip's collaborative model.
+      approach_hint: >
+        Use the per-feature channel pattern (canonical since SPEC-003 retro).
+        Channel name: trip_members:${tripId}. Subscribe to postgres_changes
+        on trip_members filtered by trip_id. .on() handlers registered
+        before .subscribe(). Hook into the existing MembersClient state.
+      priority: "medium"
+      reason: "Quality of life — not strictly necessary for MVP, but matches the rest of the app."
+
+  validation:
+    human_review:
+      - "Planner: open /members, see self listed as 'planner (creator)' badge"
+      - "Planner: add a member by email — flow shows their profile + role picker, confirm, row appears"
+      - "Planner: change a member's role from viewer to planner — change persists, badge updates"
+      - "Planner: remove a non-creator member — row removed from list"
+      - "Planner: attempt to remove the trip creator — button absent / disabled"
+      - "Viewer: see members list but no add/remove/role-change controls"
+      - "Email lookup misses: clear message 'No user with that email — they need to sign in once first'"
+      - "Open in two tabs: changes in tab A appear in tab B within a few seconds"
+
+  deliverables:
+    - "lib/queries/trips.ts: new helpers (see SPEC-002b.1)"
+    - "app/dashboard/trips/[tripId]/members/page.tsx: server page"
+    - "app/dashboard/trips/[tripId]/members/components/MembersClient.tsx: client UI"
+    - "app/dashboard/trips/[tripId]/components/TripHeader.tsx: members link"
