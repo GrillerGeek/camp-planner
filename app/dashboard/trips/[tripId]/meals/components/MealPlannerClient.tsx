@@ -19,6 +19,8 @@ import {
 } from "@/lib/types/meals";
 import { suggestMealsForTrip } from "../actions";
 import type { MealSuggestion } from "@/lib/ai/meal-suggestions";
+import { MealEditModal } from "./MealEditModal";
+import { RecipeDetails } from "./RecipeDetails";
 
 interface MealPlannerClientProps {
   tripId: string;
@@ -74,6 +76,12 @@ export function MealPlannerClient({
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
   const [addingSuggestion, setAddingSuggestion] = useState<number | null>(null);
+  const [expandedSuggestion, setExpandedSuggestion] = useState<number | null>(
+    null
+  );
+  const [previewRecipe, setPreviewRecipe] = useState<Recipe | null>(null);
+  const [editingMeal, setEditingMeal] = useState<TripMeal | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
 
   const tripDays = getTripDays(trip.start_date, trip.end_date);
 
@@ -181,6 +189,28 @@ export function MealPlannerClient({
     setMealNotes("");
     setRecipeSearch("");
     setShowRecipePicker(false);
+    setPreviewRecipe(null);
+  }
+
+  async function handleSaveMealEdit(updates: {
+    recipe_id: string | null;
+    custom_meal_name: string | null;
+    notes: string | null;
+  }) {
+    if (!editingMeal) return;
+    setEditSaving(true);
+    try {
+      const supabase = createClient();
+      const updated = await updateMeal(supabase, editingMeal.id, updates);
+      setMeals((prev) =>
+        prev.map((m) => (m.id === editingMeal.id ? updated : m))
+      );
+      setEditingMeal(null);
+    } catch (err) {
+      console.error("Failed to update meal:", err);
+    } finally {
+      setEditSaving(false);
+    }
   }
 
   async function handleGetSuggestions() {
@@ -334,6 +364,7 @@ export function MealPlannerClient({
                   : null;
                 const isAdding = addingSuggestion === i;
                 const hasEmptySlot = findFirstEmptySlot(s.meal_type) !== null;
+                const isExpanded = expandedSuggestion === i;
                 return (
                   <div
                     key={`${s.name}-${i}`}
@@ -356,9 +387,36 @@ export function MealPlannerClient({
                       {s.why_suggested}
                     </p>
                     {matchingRecipe && (
-                      <p className="text-camp-forest text-[11px] mb-2">
-                        Matches your recipe: {matchingRecipe.name}
-                      </p>
+                      <div className="mb-2">
+                        <button
+                          onClick={() =>
+                            setExpandedSuggestion(isExpanded ? null : i)
+                          }
+                          className="text-camp-forest hover:text-camp-pine text-[11px] inline-flex items-center gap-1 transition-colors"
+                        >
+                          <svg
+                            className={`w-3 h-3 transition-transform ${
+                              isExpanded ? "rotate-90" : ""
+                            }`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="m8.25 4.5 7.5 7.5-7.5 7.5"
+                            />
+                          </svg>
+                          {isExpanded ? "Hide recipe" : "Show recipe"}: {matchingRecipe.name}
+                        </button>
+                        {isExpanded && (
+                          <div className="mt-2 bg-black/20 border border-white/10 rounded p-2">
+                            <RecipeDetails recipe={matchingRecipe} compact />
+                          </div>
+                        )}
+                      </div>
                     )}
                     <button
                       onClick={() => handleAddSuggestion(s, i)}
@@ -423,7 +481,16 @@ export function MealPlannerClient({
                         key={meal.id}
                         draggable={isPlanner}
                         onDragStart={(e) => handleDragStart(e, meal.id)}
-                        className="bg-white/5 border border-white/10 rounded-lg p-2 mb-2 group cursor-move"
+                        onClick={() => setEditingMeal(meal)}
+                        className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-2 mb-2 group cursor-pointer transition-colors"
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setEditingMeal(meal);
+                          }
+                        }}
                       >
                         <div className="flex items-start justify-between gap-1">
                           <span className="text-white text-sm font-medium truncate">
@@ -431,7 +498,10 @@ export function MealPlannerClient({
                           </span>
                           {isPlanner && (
                             <button
-                              onClick={() => handleRemoveMeal(meal.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveMeal(meal.id);
+                              }}
                               className="text-camp-earth/40 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 shrink-0"
                               title="Remove meal"
                             >
@@ -517,6 +587,33 @@ export function MealPlannerClient({
                               </button>
                             </div>
                           </>
+                        ) : previewRecipe ? (
+                          <>
+                            <div className="max-h-72 overflow-y-auto pr-1">
+                              <RecipeDetails recipe={previewRecipe} compact />
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleAddMeal(previewRecipe)}
+                                disabled={saving}
+                                className="bg-camp-forest hover:bg-camp-pine text-white text-xs font-medium py-1.5 px-3 rounded transition-colors disabled:opacity-50"
+                              >
+                                {saving ? "Adding..." : "Add to slot"}
+                              </button>
+                              <button
+                                onClick={() => setPreviewRecipe(null)}
+                                className="bg-white/5 hover:bg-white/10 text-white text-xs font-medium py-1.5 px-3 rounded transition-colors border border-white/10"
+                              >
+                                Back to list
+                              </button>
+                              <button
+                                onClick={closeSlotEditor}
+                                className="text-camp-earth/60 hover:text-white text-xs py-1.5 px-2 transition-colors ml-auto"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </>
                         ) : (
                           <>
                             <input
@@ -538,7 +635,7 @@ export function MealPlannerClient({
                                 filteredRecipes.map((recipe) => (
                                   <button
                                     key={recipe.id}
-                                    onClick={() => handleAddMeal(recipe)}
+                                    onClick={() => setPreviewRecipe(recipe)}
                                     disabled={saving}
                                     className="w-full text-left bg-white/5 hover:bg-white/10 border border-white/10 rounded px-2.5 py-1.5 text-sm text-white transition-colors disabled:opacity-50"
                                   >
@@ -591,6 +688,17 @@ export function MealPlannerClient({
             Set your trip start and end dates to start planning meals.
           </p>
         </div>
+      )}
+
+      {editingMeal && (
+        <MealEditModal
+          meal={editingMeal}
+          recipes={recipes}
+          isPlanner={isPlanner}
+          saving={editSaving}
+          onClose={() => setEditingMeal(null)}
+          onSave={handleSaveMealEdit}
+        />
       )}
     </div>
   );
