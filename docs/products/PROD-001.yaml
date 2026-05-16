@@ -1,7 +1,7 @@
 product:
   id: "PROD-001"
   name: "Camp Planner"
-  status: "discovery"
+  status: "active"
   owner: "Jason Robey"
 
   problem_statement: >
@@ -38,7 +38,7 @@ product:
     entirely and makes trip prep feel organized rather than stressful.
 
   context:
-    stack: "Next.js 14+ (App Router), Tailwind CSS, Supabase (PostgreSQL, Auth, Realtime), Vercel hosting"
+    stack: "Next.js 16 (App Router), React 19, Tailwind CSS v4, Supabase (PostgreSQL, Auth, Realtime), Vercel hosting + AI Gateway"
     patterns: "PWA (Progressive Web App), server components with client islands, Supabase Row Level Security for multi-user access control, real-time subscriptions for collaborative editing"
     conventions:
       - "TypeScript throughout"
