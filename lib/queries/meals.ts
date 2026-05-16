@@ -291,16 +291,3 @@ export async function getMealProgress(
   return { planned, total: totalSlots };
 }
 
-// ============================================================
-// AI SUGGESTIONS (stub)
-// ============================================================
-
-/**
- * Stub function for AI meal suggestions.
- * Returns an empty array for now - will be implemented with Claude API later.
- */
-export async function getAISuggestions(
-  _tripId: string
-): Promise<{ name: string; description: string; source: string }[]> {
-  return [];
-}

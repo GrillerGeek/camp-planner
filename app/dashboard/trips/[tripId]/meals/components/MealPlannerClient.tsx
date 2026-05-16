@@ -7,7 +7,6 @@ import {
   addMeal,
   updateMeal,
   removeMeal,
-  getAISuggestions,
 } from "@/lib/queries/meals";
 import { Trip } from "@/lib/types/trip";
 import {
@@ -18,6 +17,8 @@ import {
   MEAL_TYPES,
   MEAL_TYPE_LABELS,
 } from "@/lib/types/meals";
+import { suggestMealsForTrip } from "../actions";
+import type { MealSuggestion } from "@/lib/ai/meal-suggestions";
 
 interface MealPlannerClientProps {
   tripId: string;
@@ -69,7 +70,10 @@ export function MealPlannerClient({
   const [mealNotes, setMealNotes] = useState("");
   const [recipeSearch, setRecipeSearch] = useState("");
   const [saving, setSaving] = useState(false);
-  const [showSuggestionToast, setShowSuggestionToast] = useState(false);
+  const [suggestions, setSuggestions] = useState<MealSuggestion[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+  const [addingSuggestion, setAddingSuggestion] = useState<number | null>(null);
 
   const tripDays = getTripDays(trip.start_date, trip.end_date);
 
@@ -179,11 +183,77 @@ export function MealPlannerClient({
     setShowRecipePicker(false);
   }
 
-  function handleGetSuggestions() {
-    // Stub: show "coming soon" toast
-    getAISuggestions(tripId);
-    setShowSuggestionToast(true);
-    setTimeout(() => setShowSuggestionToast(false), 3000);
+  async function handleGetSuggestions() {
+    if (suggestionsLoading) return;
+    setSuggestionsLoading(true);
+    setSuggestionsError(null);
+    try {
+      const result = await suggestMealsForTrip(tripId);
+      if (result.ok) {
+        setSuggestions(result.suggestions);
+      } else {
+        setSuggestionsError(result.error);
+      }
+    } catch {
+      setSuggestionsError("Network error. Please try again.");
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  }
+
+  function findFirstEmptySlot(mealType: MealType): string | null {
+    return (
+      tripDays.find((day) => getMealsForSlot(day, mealType).length === 0) ??
+      null
+    );
+  }
+
+  async function handleAddSuggestion(
+    suggestion: MealSuggestion,
+    index: number
+  ) {
+    if (!isPlanner || addingSuggestion !== null) return;
+
+    const targetDay = findFirstEmptySlot(suggestion.meal_type);
+    if (!targetDay) {
+      setSuggestionsError(
+        `No empty ${suggestion.meal_type} slot available — remove an existing meal first.`
+      );
+      return;
+    }
+
+    setAddingSuggestion(index);
+    setSuggestionsError(null);
+    try {
+      const mealPlanId = await ensureMealPlan();
+      const supabase = createClient();
+      const matchingRecipe = suggestion.matching_recipe_id
+        ? recipes.find((r) => r.id === suggestion.matching_recipe_id) ?? null
+        : null;
+
+      const newMeal = await addMeal(supabase, {
+        meal_plan_id: mealPlanId,
+        day_date: targetDay,
+        meal_type: suggestion.meal_type,
+        recipe_id: matchingRecipe?.id ?? null,
+        custom_meal_name: matchingRecipe ? null : suggestion.name,
+        notes: suggestion.description,
+        sort_order: 0,
+      });
+
+      setMeals((prev) => [...prev, newMeal]);
+      setSuggestions((prev) => prev.filter((_, i) => i !== index));
+    } catch (err) {
+      console.error("Failed to add suggestion:", err);
+      setSuggestionsError("Failed to add suggestion. Please try again.");
+    } finally {
+      setAddingSuggestion(null);
+    }
+  }
+
+  function dismissSuggestions() {
+    setSuggestions([]);
+    setSuggestionsError(null);
   }
 
   const filteredRecipes = recipes.filter((r) =>
@@ -219,32 +289,100 @@ export function MealPlannerClient({
   return (
     <div>
       {/* AI Suggestions button */}
-      <div className="mb-4 flex items-center gap-3">
-        <button
-          onClick={handleGetSuggestions}
-          className="bg-camp-fire/20 hover:bg-camp-fire/30 text-camp-fire font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 text-sm border border-camp-fire/30"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
-            />
-          </svg>
-          Get Suggestions
-        </button>
-        {showSuggestionToast && (
-          <span className="text-camp-earth text-sm animate-pulse">
-            Coming soon - AI meal suggestions are under development
-          </span>
-        )}
-      </div>
+      {isPlanner && (
+        <div className="mb-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleGetSuggestions}
+              disabled={suggestionsLoading}
+              className="bg-camp-fire/20 hover:bg-camp-fire/30 text-camp-fire font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 text-sm border border-camp-fire/30 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg
+                className={`w-4 h-4 ${suggestionsLoading ? "animate-spin" : ""}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
+                />
+              </svg>
+              {suggestionsLoading ? "Thinking..." : "Get Suggestions"}
+            </button>
+            {suggestions.length > 0 && (
+              <button
+                onClick={dismissSuggestions}
+                className="text-camp-earth/60 hover:text-white text-xs transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {suggestionsError && (
+            <div className="mt-2 text-red-400 text-xs">{suggestionsError}</div>
+          )}
+
+          {suggestions.length > 0 && (
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {suggestions.map((s, i) => {
+                const matchingRecipe = s.matching_recipe_id
+                  ? recipes.find((r) => r.id === s.matching_recipe_id)
+                  : null;
+                const isAdding = addingSuggestion === i;
+                const hasEmptySlot = findFirstEmptySlot(s.meal_type) !== null;
+                return (
+                  <div
+                    key={`${s.name}-${i}`}
+                    className="bg-white/5 border border-white/10 rounded-lg p-3"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase tracking-wider text-camp-fire px-1.5 py-0.5 rounded bg-camp-fire/10 border border-camp-fire/20">
+                          {MEAL_TYPE_LABELS[s.meal_type]}
+                        </span>
+                        <h4 className="text-white text-sm font-medium">
+                          {s.name}
+                        </h4>
+                      </div>
+                    </div>
+                    <p className="text-camp-earth/80 text-xs mb-1.5">
+                      {s.description}
+                    </p>
+                    <p className="text-camp-earth/60 text-xs italic mb-2">
+                      {s.why_suggested}
+                    </p>
+                    {matchingRecipe && (
+                      <p className="text-camp-forest text-[11px] mb-2">
+                        Matches your recipe: {matchingRecipe.name}
+                      </p>
+                    )}
+                    <button
+                      onClick={() => handleAddSuggestion(s, i)}
+                      disabled={isAdding || !hasEmptySlot}
+                      className="bg-camp-forest hover:bg-camp-pine text-white text-xs font-medium py-1 px-3 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={
+                        !hasEmptySlot
+                          ? `No empty ${s.meal_type} slot on this trip`
+                          : undefined
+                      }
+                    >
+                      {isAdding
+                        ? "Adding..."
+                        : hasEmptySlot
+                        ? "Add to next empty slot"
+                        : "No empty slot"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Meal planner grid */}
       <div className="space-y-3">

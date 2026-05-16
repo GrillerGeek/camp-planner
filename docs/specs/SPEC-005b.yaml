@@ -23,6 +23,8 @@ spec:
   scope:
     - id: "SPEC-005b.1"
       summary: "AI meal suggestions (EXP-009)"
+      status: "shipped"
+      shipped_on: "2026-05-15"
       problem: >
         Suggest meal/recipe choices based on past favorites, trip history,
         and destination/season. UI shows a "Coming soon" toast today.
@@ -34,9 +36,26 @@ spec:
         generateObject. Cache per-trip suggestions for 24h.
       priority: "high"
       reason: "Closes a fictional feature gap and is core to INT-003."
+      implementation: >
+        lib/ai/meal-suggestions.ts (server-only): generateText + Output.object
+        with a Zod schema for 5 structured suggestions. Uses the AI Gateway
+        default provider with model string "anthropic/claude-sonnet-4.6".
+        Context: destination, season (derived from start_date month),
+        campsite_info, planner notes, recipe library (capped at 50), and
+        existing meal-type distribution so the model biases toward gaps.
+        app/dashboard/trips/[tripId]/meals/actions.ts: server action wraps
+        the generation and looks up trip + recipes server-side.
+        MealPlannerClient: replaces "Coming soon" toast with a real call,
+        renders 5 suggestion cards with description + why_suggested + recipe
+        match badge, "Add to next empty slot" button reuses existing addMeal.
+        Per-trip caching deferred — first cut is a fresh call per click.
+        Requires AI_GATEWAY_API_KEY in env for local dev; production uses
+        OIDC automatically on Vercel.
 
     - id: "SPEC-005b.2"
       summary: "Local-flavor suggestions (EXP-010)"
+      status: "shipped"
+      shipped_on: "2026-05-15"
       problem: >
         Same as above, scoped to suggestions inspired by the destination
         region's local cuisine.
@@ -44,6 +63,12 @@ spec:
         Same Gateway endpoint with a different system prompt + destination
         as the primary signal. May piggyback on SPEC-005b.1's endpoint.
       priority: "medium"
+      implementation: >
+        Folded into SPEC-005b.1. The single endpoint's prompt instructs the
+        model to factor destination-region cuisine when the destination hints
+        at it, rather than maintaining a separate code path. Validate by
+        setting a destination like "New Orleans" and confirming gumbo /
+        jambalaya / beignets show up in suggestions.
 
     - id: "SPEC-005b.3"
       summary: "Recipe snapshot on meal assignment"
