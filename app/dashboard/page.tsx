@@ -1,7 +1,62 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getTripsForUser } from "@/lib/queries/trips";
+import { TripWithMemberCount } from "@/lib/types/trip";
 import { TripCard } from "./components/TripCard";
+
+type Bucket = "active" | "upcoming" | "needs_review" | "completed";
+
+function bucketFor(trip: TripWithMemberCount, today: string): Bucket {
+  if (trip.status === "completed") return "completed";
+  // Compare YYYY-MM-DD strings — avoids timezone math on date-only columns.
+  if (trip.start_date <= today && trip.end_date >= today) return "active";
+  if (trip.end_date < today) return "needs_review";
+  return "upcoming";
+}
+
+function todayYMD(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+interface SectionProps {
+  title: string;
+  description?: string;
+  tone?: "default" | "warning" | "muted";
+  trips: TripWithMemberCount[];
+  baseIndex: number;
+}
+
+function Section({ title, description, tone = "default", trips, baseIndex }: SectionProps) {
+  if (trips.length === 0) return null;
+  const titleColor =
+    tone === "warning"
+      ? "text-camp-fire"
+      : tone === "muted"
+      ? "text-camp-earth/70"
+      : "text-white";
+  return (
+    <section className="mb-8 last:mb-0">
+      <div className="flex items-baseline gap-3 mb-3">
+        <h2 className={`text-lg font-semibold ${titleColor}`}>{title}</h2>
+        <span className="text-camp-earth/50 text-sm">
+          {trips.length}
+        </span>
+      </div>
+      {description && (
+        <p className="text-camp-earth/60 text-sm mb-3">{description}</p>
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {trips.map((trip, i) => (
+          <TripCard key={trip.id} trip={trip} index={baseIndex + i} />
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -11,7 +66,7 @@ export default async function DashboardPage() {
 
   const firstName = user?.user_metadata?.full_name?.split(" ")[0] ?? "Camper";
 
-  let trips: Awaited<ReturnType<typeof getTripsForUser>> = [];
+  let trips: TripWithMemberCount[] = [];
   let loadError: string | null = null;
   try {
     trips = await getTripsForUser(supabase);
@@ -21,6 +76,46 @@ export default async function DashboardPage() {
         ? err.message
         : "Couldn't load your trips. Try refreshing.";
   }
+
+  const today = todayYMD();
+  const buckets: Record<Bucket, TripWithMemberCount[]> = {
+    active: [],
+    upcoming: [],
+    needs_review: [],
+    completed: [],
+  };
+  for (const t of trips) {
+    buckets[bucketFor(t, today)].push(t);
+  }
+  buckets.upcoming.sort((a, b) => a.start_date.localeCompare(b.start_date));
+  buckets.active.sort((a, b) => a.start_date.localeCompare(b.start_date));
+  buckets.needs_review.sort((a, b) => b.end_date.localeCompare(a.end_date));
+  buckets.completed.sort((a, b) => b.end_date.localeCompare(a.end_date));
+
+  // baseIndex keeps the accent-color rotation continuous across sections.
+  let runningIndex = 0;
+  const indexes = {
+    active: ((): number => {
+      const v = runningIndex;
+      runningIndex += buckets.active.length;
+      return v;
+    })(),
+    upcoming: ((): number => {
+      const v = runningIndex;
+      runningIndex += buckets.upcoming.length;
+      return v;
+    })(),
+    needs_review: ((): number => {
+      const v = runningIndex;
+      runningIndex += buckets.needs_review.length;
+      return v;
+    })(),
+    completed: ((): number => {
+      const v = runningIndex;
+      runningIndex += buckets.completed.length;
+      return v;
+    })(),
+  };
 
   return (
     <div>
@@ -76,11 +171,32 @@ export default async function DashboardPage() {
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {trips.map((trip, index) => (
-            <TripCard key={trip.id} trip={trip} index={index} />
-          ))}
-        </div>
+        <>
+          <Section
+            title="Active"
+            description="Trips happening right now."
+            trips={buckets.active}
+            baseIndex={indexes.active}
+          />
+          <Section
+            title="Upcoming"
+            trips={buckets.upcoming}
+            baseIndex={indexes.upcoming}
+          />
+          <Section
+            title="Past — needs review"
+            description="These trips ended. Mark them complete to move them to your trip history."
+            tone="warning"
+            trips={buckets.needs_review}
+            baseIndex={indexes.needs_review}
+          />
+          <Section
+            title="Completed"
+            tone="muted"
+            trips={buckets.completed}
+            baseIndex={indexes.completed}
+          />
+        </>
       )}
     </div>
   );

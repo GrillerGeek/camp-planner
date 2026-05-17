@@ -1,0 +1,86 @@
+spec:
+  id: "SPEC-002d"
+  name: "Dashboard hygiene + trip lifecycle + viewer check-off"
+  product: "PROD-001"
+  parent: "SPEC-002"
+  status: "in_progress"
+  owner: "Jason Robey"
+  created: "2026-05-17"
+
+  origin: >
+    Promoted from the 2026-05-16 UX audit
+    (docs/UX_AUDIT_2026-05-16.md). Bundles the P1 dashboard/lifecycle
+    findings: B4 (past-trip clutter), B5 (viewer check-off), B8
+    (status auto-progression).
+
+  context:
+    intentions:
+      - "INT-001"
+      - "INT-002"
+      - "INT-006"
+    expectations:
+      - "EXP-002 (extended — lifecycle states surfaced in UI)"
+      - "EXP-007 (extended — viewer can check off own assigned items)"
+
+  scope:
+    - id: "SPEC-002d.1"
+      summary: "Dashboard split: Upcoming / Past / Completed"
+      problem: >
+        Dashboard renders all trips in a single date-sorted grid. A trip
+        that ended last weekend but wasn't marked completed sits next to
+        next month's upcoming trip. Cluttery and disorienting.
+      approach_hint: >
+        Server-side group by (status, end_date vs today). Render
+        "Upcoming" (start_date >= today), "Active" (today between
+        start_date and end_date), "Past — needs review" (end_date < today
+        and status != completed), and "Completed" (status = completed).
+        Empty sections are hidden.
+
+    - id: "SPEC-002d.2"
+      summary: "Trip lifecycle nudge to mark complete"
+      problem: >
+        A trip stays "planning" or "active" forever unless the user
+        explicitly marks it completed via the CompleteTripButton. After
+        end_date passes, the dashboard mixes it in with current trips
+        (see .1) AND the trip detail page gives no signal that the trip
+        is over.
+      approach_hint: >
+        On the trip detail page, when status != completed AND end_date <
+        today, show a prominent banner above the readiness cards:
+        "This trip ended on <date>. Mark it complete?" with a one-tap
+        button. The existing CompleteTripButton already lives at the
+        bottom of the page; this is a contextual prompt at the top.
+
+    - id: "SPEC-002d.3"
+      summary: "Viewer check-off on their own assigned packing items"
+      problem: >
+        SPEC-004 retro disabled check-off for all non-planners. But the
+        product premise puts viewers in charge of items assigned to
+        them ("Angie's tent"). They should be able to mark those packed
+        when they do the work. Today the checkbox is disabled with
+        "Only planners can mark items packed" — wrong for assignees.
+      approach_hint: >
+        Migration: add an UPDATE policy on trip_packing_items allowing
+        non-planner members to update items where assigned_to = auth.uid().
+        Add a BEFORE UPDATE trigger restricting non-planner column scope
+        to is_packed only (same pattern as the trip_tasks viewer-scope
+        trigger from migration 009). PackingListClient: relax the
+        checkbox disabled condition to allow !isPlanner when
+        item.assigned_to === currentUserId.
+
+  deliverables:
+    - "supabase/migrations/012_packing_viewer_checkoff.sql"
+    - "app/dashboard/page.tsx + components/TripCard.tsx: section split"
+    - "lib/queries/trips.ts: extend getTripsForUser with status/date grouping helpers if needed"
+    - "app/dashboard/trips/[tripId]/page.tsx: contextual complete nudge banner"
+    - "app/dashboard/trips/[tripId]/packing/components/PackingListClient.tsx: relaxed viewer check-off"
+
+  validation:
+    human_review:
+      - "Dashboard shows Upcoming / Active / Past-needs-review / Completed sections; sections with no trips are hidden"
+      - "A trip past its end_date that's still status=planning shows up under 'Past — needs review'"
+      - "Open a past trip: banner at top says 'This trip ended on X. Mark it complete?' with a button"
+      - "As a planner: check off any item — works"
+      - "As a viewer on an item assigned to you: check off works"
+      - "As a viewer on an item NOT assigned to you: checkbox stays disabled with the appropriate tooltip"
+      - "As a viewer: attempt to edit name/notes/etc on an assigned item — server rejects via the trigger"

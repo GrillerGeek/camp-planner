@@ -23,6 +23,7 @@ interface PackingListClientProps {
   tripId: string;
   trip: Trip;
   isPlanner: boolean;
+  currentUserId: string | null;
   initialPackingList: TripPackingListWithItems | null;
   members: { user_id: string; display_name: string; role: string }[];
 }
@@ -31,6 +32,7 @@ export function PackingListClient({
   tripId,
   trip,
   isPlanner,
+  currentUserId,
   initialPackingList,
   members,
 }: PackingListClientProps) {
@@ -406,17 +408,24 @@ export function PackingListClient({
                         onClick={() =>
                           handleTogglePacked(item.id, item.is_packed)
                         }
-                        disabled={!isPlanner}
+                        disabled={
+                          !isPlanner &&
+                          item.assigned_to !== currentUserId
+                        }
                         title={
-                          !isPlanner
-                            ? "Only planners can mark items packed"
+                          !isPlanner && item.assigned_to !== currentUserId
+                            ? "Only the assignee or a planner can mark this packed"
                             : undefined
                         }
                         className={`w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
                           item.is_packed
                             ? "bg-camp-forest border-camp-forest"
                             : "border-white/30 hover:border-camp-forest"
-                        } ${!isPlanner ? "cursor-not-allowed opacity-60" : ""}`}
+                        } ${
+                          !isPlanner && item.assigned_to !== currentUserId
+                            ? "cursor-not-allowed opacity-60"
+                            : ""
+                        }`}
                       >
                         {item.is_packed && (
                           <svg

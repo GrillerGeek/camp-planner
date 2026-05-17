@@ -8,6 +8,15 @@ import Link from "next/link";
 import { TripHeader } from "./components/TripHeader";
 import { ReadinessCard } from "./components/ReadinessCard";
 import { CompleteTripButton } from "./components/CompleteTripButton";
+import { TripEndedBanner } from "./components/TripEndedBanner";
+
+function todayYMD(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export default async function TripDetailPage({
   params,
@@ -46,9 +55,17 @@ export default async function TripDetailPage({
     );
   }
 
+  const isPast = trip.end_date < todayYMD();
+  const showEndedBanner =
+    isPast && trip.status !== "completed" && role === "planner";
+
   return (
     <div>
       <TripHeader trip={trip} userRole={role} />
+
+      {showEndedBanner && (
+        <TripEndedBanner tripId={tripId} endDate={trip.end_date} />
+      )}
 
       {trip.notes && (
         <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">

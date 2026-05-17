@@ -15,11 +15,12 @@ export default async function TripPackingPage({
   const { tripId } = await params;
   const supabase = await createClient();
 
-  const [trip, role, packingList, members] = await Promise.all([
+  const [trip, role, packingList, members, { data: userData }] = await Promise.all([
     getTripById(supabase, tripId),
     getUserRoleForTrip(supabase, tripId),
     getTripPackingList(supabase, tripId),
     getTripMembers(supabase, tripId),
+    supabase.auth.getUser(),
   ]);
 
   if (!trip || !role) {
@@ -79,6 +80,7 @@ export default async function TripPackingPage({
         tripId={tripId}
         trip={trip}
         isPlanner={isPlanner}
+        currentUserId={userData.user?.id ?? null}
         initialPackingList={packingList}
         members={members}
       />
