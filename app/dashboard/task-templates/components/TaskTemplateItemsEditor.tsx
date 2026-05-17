@@ -21,10 +21,37 @@ export function TaskTemplateItemsEditor({
   const [items, setItems] = useState<TaskTemplateItem[]>(initialItems);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [newItem, setNewItem] = useState({ title: "", description: "" });
-  const [editItem, setEditItem] = useState({ title: "", description: "" });
+  const [newItem, setNewItem] = useState<{
+    title: string;
+    description: string;
+    relative_due_days: string;
+    priority: "low" | "medium" | "high";
+  }>({
+    title: "",
+    description: "",
+    relative_due_days: "",
+    priority: "medium",
+  });
+  const [editItem, setEditItem] = useState<{
+    title: string;
+    description: string;
+    relative_due_days: string;
+    priority: "low" | "medium" | "high";
+  }>({
+    title: "",
+    description: "",
+    relative_due_days: "",
+    priority: "medium",
+  });
 
   const supabase = createClient();
+
+  function parseRelativeDays(input: string): number | null {
+    const trimmed = input.trim();
+    if (!trimmed) return null;
+    const n = parseInt(trimmed, 10);
+    return Number.isFinite(n) ? n : null;
+  }
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -36,10 +63,18 @@ export function TaskTemplateItemsEditor({
         template_id: templateId,
         title: newItem.title,
         description: newItem.description || undefined,
+        relative_due_days: parseRelativeDays(newItem.relative_due_days),
+        priority: newItem.priority,
         sort_order: items.length,
       });
       setItems((prev) => [...prev, item]);
-      setNewItem({ title: "", description: "" });
+      setNewItem({
+        title: "",
+        description: "",
+        relative_due_days: "",
+        // preserve priority between adds for quick "all high" entry
+        priority: newItem.priority,
+      });
     } catch {
       // ignore
     } finally {
@@ -52,6 +87,9 @@ export function TaskTemplateItemsEditor({
     setEditItem({
       title: item.title,
       description: item.description ?? "",
+      relative_due_days:
+        item.relative_due_days != null ? String(item.relative_due_days) : "",
+      priority: item.priority,
     });
   }
 
@@ -62,6 +100,8 @@ export function TaskTemplateItemsEditor({
       const updated = await updateTaskTemplateItem(supabase, itemId, {
         title: editItem.title.trim(),
         description: editItem.description.trim() || undefined,
+        relative_due_days: parseRelativeDays(editItem.relative_due_days),
+        priority: editItem.priority,
       });
       setItems((prev) => prev.map((i) => (i.id === itemId ? updated : i)));
       setEditingId(null);
@@ -107,13 +147,50 @@ export function TaskTemplateItemsEditor({
             placeholder="Description (optional)"
             className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-camp-earth/50 focus:outline-none focus:ring-2 focus:ring-camp-forest focus:border-transparent"
           />
-          <button
-            type="submit"
-            disabled={loading || !newItem.title.trim()}
-            className="bg-camp-forest hover:bg-camp-pine disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
-          >
-            {loading ? "Adding..." : "Add Task"}
-          </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="text-camp-earth text-xs flex items-center gap-1.5">
+              Days from trip start:
+              <input
+                type="number"
+                value={newItem.relative_due_days}
+                onChange={(e) =>
+                  setNewItem((prev) => ({
+                    ...prev,
+                    relative_due_days: e.target.value,
+                  }))
+                }
+                placeholder="e.g. -7"
+                className="w-20 bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white placeholder-camp-earth/30 focus:outline-none focus:ring-1 focus:ring-camp-forest"
+              />
+              <span className="text-camp-earth/50 text-[10px]">
+                (neg = before, blank = no due date)
+              </span>
+            </label>
+            <label className="text-camp-earth text-xs flex items-center gap-1.5">
+              Priority:
+              <select
+                value={newItem.priority}
+                onChange={(e) =>
+                  setNewItem((prev) => ({
+                    ...prev,
+                    priority: e.target.value as "low" | "medium" | "high",
+                  }))
+                }
+                className="bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-camp-forest"
+              >
+                <option value="low" className="bg-camp-night">low</option>
+                <option value="medium" className="bg-camp-night">medium</option>
+                <option value="high" className="bg-camp-night">high</option>
+              </select>
+            </label>
+            <button
+              type="submit"
+              disabled={loading || !newItem.title.trim()}
+              className="ml-auto bg-camp-forest hover:bg-camp-pine disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
+            >
+              {loading ? "Adding..." : "Add Task"}
+            </button>
+          </div>
         </div>
       </form>
 
@@ -155,25 +232,84 @@ export function TaskTemplateItemsEditor({
                     placeholder="Description"
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white placeholder-camp-earth/50 focus:outline-none focus:ring-2 focus:ring-camp-forest focus:border-transparent"
                   />
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleSaveEdit(item.id)}
-                      className="bg-camp-forest hover:bg-camp-pine text-white text-xs font-medium py-1 px-3 rounded transition-colors"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className="text-camp-earth hover:text-white text-xs py-1 px-2 transition-colors"
-                    >
-                      Cancel
-                    </button>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <label className="text-camp-earth text-xs flex items-center gap-1.5">
+                      Days:
+                      <input
+                        type="number"
+                        value={editItem.relative_due_days}
+                        onChange={(e) =>
+                          setEditItem((prev) => ({
+                            ...prev,
+                            relative_due_days: e.target.value,
+                          }))
+                        }
+                        placeholder="e.g. -7"
+                        className="w-20 bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white placeholder-camp-earth/30 focus:outline-none focus:ring-1 focus:ring-camp-forest"
+                      />
+                    </label>
+                    <label className="text-camp-earth text-xs flex items-center gap-1.5">
+                      Priority:
+                      <select
+                        value={editItem.priority}
+                        onChange={(e) =>
+                          setEditItem((prev) => ({
+                            ...prev,
+                            priority: e.target.value as
+                              | "low"
+                              | "medium"
+                              | "high",
+                          }))
+                        }
+                        className="bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-camp-forest"
+                      >
+                        <option value="low" className="bg-camp-night">low</option>
+                        <option value="medium" className="bg-camp-night">medium</option>
+                        <option value="high" className="bg-camp-night">high</option>
+                      </select>
+                    </label>
+                    <div className="ml-auto flex gap-2">
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="text-camp-earth hover:text-white text-xs py-1 px-2 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleSaveEdit(item.id)}
+                        className="bg-camp-forest hover:bg-camp-pine text-white text-xs font-medium py-1 px-3 rounded transition-colors"
+                      >
+                        Save
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : (
                 <>
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm text-white">{item.title}</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm text-white">{item.title}</span>
+                      {item.priority !== "medium" && (
+                        <span
+                          className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                            item.priority === "high"
+                              ? "bg-camp-fire/15 text-camp-fire"
+                              : "bg-white/10 text-camp-earth/80"
+                          }`}
+                        >
+                          {item.priority}
+                        </span>
+                      )}
+                      {item.relative_due_days != null && (
+                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-camp-sky/15 text-camp-sky">
+                          {item.relative_due_days === 0
+                            ? "day-of"
+                            : item.relative_due_days < 0
+                            ? `${Math.abs(item.relative_due_days)}d before`
+                            : `${item.relative_due_days}d after`}
+                        </span>
+                      )}
+                    </div>
                     {item.description && (
                       <p className="text-camp-earth/60 text-xs mt-0.5">
                         {item.description}

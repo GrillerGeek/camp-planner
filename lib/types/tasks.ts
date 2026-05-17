@@ -12,6 +12,9 @@ export interface TaskTemplateItem {
   template_id: string;
   title: string;
   description: string | null;
+  /** Days offset from trip.start_date — negative = before, 0 = day-of, positive = after. null = no due date */
+  relative_due_days: number | null;
+  priority: "low" | "medium" | "high";
   sort_order: number;
 }
 
@@ -31,6 +34,7 @@ export interface TripTask {
   completed_at: string | null;
   completed_by: string | null;
   sort_order: number;
+  template_source_id: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;

@@ -238,6 +238,8 @@ export async function addTaskTemplateItem(
     template_id: string;
     title: string;
     description?: string;
+    relative_due_days?: number | null;
+    priority?: "low" | "medium" | "high";
     sort_order?: number;
   }
 ): Promise<TaskTemplateItem> {
@@ -247,6 +249,8 @@ export async function addTaskTemplateItem(
       template_id: item.template_id,
       title: item.title.trim(),
       description: item.description?.trim() || null,
+      relative_due_days: item.relative_due_days ?? null,
+      priority: item.priority ?? "medium",
       sort_order: item.sort_order ?? 0,
     })
     .select()
@@ -262,6 +266,8 @@ export async function updateTaskTemplateItem(
   updates: Partial<{
     title: string;
     description: string;
+    relative_due_days: number | null;
+    priority: "low" | "medium" | "high";
     sort_order: number;
   }>
 ): Promise<TaskTemplateItem> {
@@ -291,11 +297,47 @@ export async function deleteTaskTemplateItem(
 // APPLY TEMPLATE TO TRIP
 // ============================================================
 
+/**
+ * Returns true if the trip already has any tasks sourced from items in the
+ * given template. Used to surface a dup-apply confirmation in the UI.
+ */
+export async function hasTasksFromTemplate(
+  supabase: SupabaseClient,
+  tripId: string,
+  templateId: string
+): Promise<boolean> {
+  const { data: itemIds } = await supabase
+    .from("task_template_items")
+    .select("id")
+    .eq("template_id", templateId);
+
+  const ids = (itemIds ?? []).map((row: { id: string }) => row.id);
+  if (ids.length === 0) return false;
+
+  const { count } = await supabase
+    .from("trip_tasks")
+    .select("id", { count: "exact", head: true })
+    .eq("trip_id", tripId)
+    .in("template_source_id", ids);
+
+  return (count ?? 0) > 0;
+}
+
+function addDays(date: string, days: number): string {
+  const d = new Date(date + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export async function applyTaskTemplate(
   supabase: SupabaseClient,
   tripId: string,
   templateId: string,
-  existingTaskCount: number
+  existingTaskCount: number,
+  tripStartDate: string
 ): Promise<TripTask[]> {
   const {
     data: { user },
@@ -312,7 +354,12 @@ export async function applyTaskTemplate(
     trip_id: tripId,
     title: item.title,
     description: item.description,
-    priority: "medium" as const,
+    priority: item.priority,
+    due_date:
+      item.relative_due_days != null
+        ? addDays(tripStartDate, item.relative_due_days)
+        : null,
+    template_source_id: item.id,
     sort_order: existingTaskCount + index,
     created_by: user.id,
   }));

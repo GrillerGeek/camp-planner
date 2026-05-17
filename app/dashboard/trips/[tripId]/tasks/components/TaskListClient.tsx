@@ -9,11 +9,13 @@ import {
   toggleTaskComplete,
   getTaskTemplates,
   applyTaskTemplate,
+  hasTasksFromTemplate,
 } from "@/lib/queries/tasks";
 import { TripTask, TaskTemplate } from "@/lib/types/tasks";
 
 interface TaskListClientProps {
   tripId: string;
+  tripStartDate: string;
   isPlanner: boolean;
   currentUserId: string | null;
   initialTasks: TripTask[];
@@ -31,6 +33,7 @@ const PRIORITY_ORDER: Record<string, number> = {
 
 export function TaskListClient({
   tripId,
+  tripStartDate,
   isPlanner,
   currentUserId,
   initialTasks,
@@ -235,15 +238,31 @@ export function TaskListClient({
     }
   }
 
-  // Apply template
+  // Apply template — checks for prior application first (SPEC-007b.3)
   async function handleApplyTemplate(templateId: string) {
     setTemplateLoading(true);
     try {
+      const alreadyApplied = await hasTasksFromTemplate(
+        supabase,
+        tripId,
+        templateId
+      );
+      if (alreadyApplied) {
+        const confirmed = confirm(
+          "This template was already applied to this trip. Apply again anyway? Duplicate tasks will be created."
+        );
+        if (!confirmed) {
+          setTemplateLoading(false);
+          return;
+        }
+      }
+
       const newTasks = await applyTaskTemplate(
         supabase,
         tripId,
         templateId,
-        tasks.length
+        tasks.length,
+        tripStartDate
       );
       setTasks((prev) => [...prev, ...newTasks]);
       setShowTemplateModal(false);

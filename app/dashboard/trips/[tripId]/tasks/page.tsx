@@ -78,6 +78,7 @@ export default async function TripTasksPage({
 
       <TaskListClient
         tripId={tripId}
+        tripStartDate={trip.start_date}
         isPlanner={isPlanner}
         currentUserId={currentUserId}
         initialTasks={tasks}
