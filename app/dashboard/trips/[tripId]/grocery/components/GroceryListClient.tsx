@@ -9,6 +9,7 @@ import {
   deleteGroceryItem,
   getReconciliationData,
   applyReconciliation,
+  addPurchasedToInventory,
   ReconciliationItem,
 } from "@/lib/queries/grocery";
 import {
@@ -54,6 +55,10 @@ export function GroceryListClient({
     Record<string, number>
   >({});
   const [error, setError] = useState<string | null>(null);
+  const [addToInventoryLoading, setAddToInventoryLoading] = useState(false);
+  const [addToInventoryToast, setAddToInventoryToast] = useState<string | null>(
+    null
+  );
 
   const supabase = createClient();
 
@@ -190,6 +195,46 @@ export function GroceryListClient({
     }
   }
 
+  // SPEC-006b.4: add purchased items to camper inventory
+  async function handleAddPurchasedToInventory() {
+    setAddToInventoryLoading(true);
+    setError(null);
+    setAddToInventoryToast(null);
+    try {
+      const result = await addPurchasedToInventory(supabase, tripId);
+      if (result.itemsAdded === 0) {
+        setAddToInventoryToast("Nothing new to add — all purchased items already in inventory.");
+      } else {
+        // Mark items locally so the button hides without a refetch.
+        const stamp = new Date().toISOString();
+        setItems((prev) =>
+          prev.map((i) =>
+            i.is_purchased && !i.added_to_inventory_at
+              ? { ...i, added_to_inventory_at: stamp }
+              : i
+          )
+        );
+        const parts: string[] = [];
+        if (result.inserted > 0) parts.push(`${result.inserted} new`);
+        if (result.merged > 0) parts.push(`${result.merged} merged`);
+        setAddToInventoryToast(
+          `Added ${result.itemsAdded} item${
+            result.itemsAdded === 1 ? "" : "s"
+          } to inventory (${parts.join(", ")}).`
+        );
+      }
+      setTimeout(() => setAddToInventoryToast(null), 4000);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Couldn't add purchased items to inventory."
+      );
+    } finally {
+      setAddToInventoryLoading(false);
+    }
+  }
+
   // Reconciliation
   async function handleStartReconcile() {
     setReconcileLoading(true);
@@ -257,6 +302,12 @@ export function GroceryListClient({
       {error && (
         <div className="bg-red-500/10 border border-red-500/30 text-red-300 rounded-lg p-3 mb-4 text-sm">
           {error}
+        </div>
+      )}
+
+      {addToInventoryToast && (
+        <div className="bg-camp-forest/10 border border-camp-forest/30 text-camp-forest rounded-lg p-3 mb-4 text-sm">
+          {addToInventoryToast}
         </div>
       )}
 
@@ -348,6 +399,37 @@ export function GroceryListClient({
             {items.length > 0 ? "Regenerate from Meals" : "Generate from Meals"}
           </button>
         )}
+
+        {/* SPEC-006b.4: add purchased items to camper inventory.
+            Visible only when there are purchased items not yet pushed to
+            inventory — the action is idempotent and hides itself when there
+            is nothing to do. */}
+        {isPlanner &&
+          items.some(
+            (i) => i.is_purchased && !i.added_to_inventory_at
+          ) && (
+            <button
+              onClick={handleAddPurchasedToInventory}
+              disabled={addToInventoryLoading}
+              className="bg-camp-forest hover:bg-camp-pine disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+              title="Add the items you've checked off to your camper inventory"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"
+                />
+              </svg>
+              {addToInventoryLoading ? "Adding..." : "Add purchased to inventory"}
+            </button>
+          )}
 
         {isPlanner && trip.status === "completed" && (
           <button

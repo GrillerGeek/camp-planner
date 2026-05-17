@@ -42,6 +42,7 @@ export interface GroceryItem {
   source_recipe: string | null;
   notes: string | null;
   sort_order: number;
+  added_to_inventory_at: string | null;
 }
 
 export interface GroceryListWithItems extends GroceryList {

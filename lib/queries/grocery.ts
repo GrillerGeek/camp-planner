@@ -357,6 +357,7 @@ export async function generateGroceryListFromMeals(
       source_recipe: agg.sourceRecipes.join(", ") || null,
       notes: null,
       sort_order: sortOrder++,
+      added_to_inventory_at: null,
     });
   }
 
@@ -395,13 +396,53 @@ export async function addGroceryItem(
 ): Promise<GroceryItem> {
   const groceryList = await getOrCreateGroceryList(supabase, tripId);
 
+  const newName = item.name.trim();
+  const newUnit = item.unit?.trim() || null;
+  const newQty = item.quantity ?? 1;
+
+  // SPEC-006b.3: dedupe against existing rows on the same list by
+  // (lower(name), lower(unit ?? '')). If found, fold the new quantity
+  // into the existing row instead of inserting a duplicate. Unit family
+  // is intentionally NOT used here — the user typed a unit, and we
+  // trust an exact match; cross-family ("2 cups flour" vs "1 lb flour")
+  // gets two rows, which is the correct shopping outcome.
+  const { data: existingRows } = await supabase
+    .from("trip_grocery_items")
+    .select("*")
+    .eq("grocery_list_id", groceryList.id);
+
+  const match = (existingRows ?? []).find((row: GroceryItem) => {
+    const rowName = (row.name ?? "").toLowerCase().trim();
+    const rowUnit = (row.unit ?? "").toLowerCase().trim();
+    return (
+      rowName === newName.toLowerCase() &&
+      rowUnit === (newUnit ?? "").toLowerCase()
+    );
+  });
+
+  if (match) {
+    const { data: updated, error: updateError } = await supabase
+      .from("trip_grocery_items")
+      .update({
+        quantity: match.quantity + newQty,
+        // Preserve is_manual if either source was manual — used downstream
+        // by the regenerate dedupe.
+        is_manual: match.is_manual || true,
+      })
+      .eq("id", match.id)
+      .select()
+      .single();
+    if (updateError) throw updateError;
+    return updated;
+  }
+
   const { data, error } = await supabase
     .from("trip_grocery_items")
     .insert({
       grocery_list_id: groceryList.id,
-      name: item.name.trim(),
-      quantity: item.quantity ?? 1,
-      unit: item.unit?.trim() || null,
+      name: newName,
+      quantity: newQty,
+      unit: newUnit,
       category: item.category || "Other",
       is_manual: true,
       is_purchased: false,
@@ -544,4 +585,115 @@ export async function applyReconciliation(
         .eq("id", update.inventoryItemId);
     }
   }
+}
+
+// ============================================================
+// SPEC-006b.4: add purchased grocery items to camper inventory
+// ============================================================
+// This is the "I bought new stuff at the store, put it in my camper
+// inventory" path — distinct from the trip-completion reconcile that
+// decrements inventory by consumed amounts. Idempotent via
+// trip_grocery_items.added_to_inventory_at.
+
+export interface AddToInventoryResult {
+  inserted: number;
+  merged: number;
+  itemsAdded: number;
+}
+
+export async function getUnaddedPurchasedItems(
+  supabase: SupabaseClient,
+  tripId: string
+): Promise<GroceryItem[]> {
+  const groceryList = await getTripGroceryList(supabase, tripId);
+  if (!groceryList) return [];
+  return groceryList.trip_grocery_items.filter(
+    (item) => item.is_purchased && !item.added_to_inventory_at
+  );
+}
+
+/**
+ * Adds all purchased-but-not-yet-added grocery items to the camper
+ * inventory. If an inventory row with the same lower(name) exists, the
+ * quantity is summed onto that row; otherwise a new row is inserted.
+ * Marks each grocery item's added_to_inventory_at so repeat clicks are
+ * no-ops.
+ */
+export async function addPurchasedToInventory(
+  supabase: SupabaseClient,
+  tripId: string
+): Promise<AddToInventoryResult> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const groceryList = await getTripGroceryList(supabase, tripId);
+  if (!groceryList) return { inserted: 0, merged: 0, itemsAdded: 0 };
+
+  const toAdd = groceryList.trip_grocery_items.filter(
+    (item) => item.is_purchased && !item.added_to_inventory_at
+  );
+  if (toAdd.length === 0) return { inserted: 0, merged: 0, itemsAdded: 0 };
+
+  const { data: inventory } = await supabase
+    .from("camper_inventory")
+    .select("id, name, quantity");
+
+  const invByName = new Map<
+    string,
+    { id: string; quantity: number }
+  >();
+  for (const inv of inventory ?? []) {
+    invByName.set(normalizeIngredientName(inv.name), {
+      id: inv.id,
+      quantity: Number(inv.quantity),
+    });
+  }
+
+  let inserted = 0;
+  let merged = 0;
+
+  for (const item of toAdd) {
+    const existing = invByName.get(normalizeIngredientName(item.name));
+    if (existing) {
+      const { error } = await supabase
+        .from("camper_inventory")
+        .update({ quantity: existing.quantity + item.quantity })
+        .eq("id", existing.id);
+      if (error) throw error;
+      existing.quantity += item.quantity;
+      merged += 1;
+    } else {
+      const { data: created, error } = await supabase
+        .from("camper_inventory")
+        .insert({
+          name: item.name,
+          category: item.category || "Other",
+          quantity: item.quantity,
+          unit: item.unit,
+          created_by: user.id,
+        })
+        .select("id, name, quantity")
+        .single();
+      if (error) throw error;
+      if (created) {
+        invByName.set(normalizeIngredientName(created.name), {
+          id: created.id,
+          quantity: Number(created.quantity),
+        });
+      }
+      inserted += 1;
+    }
+  }
+
+  // Mark the grocery items as added so the action is idempotent.
+  const itemIds = toAdd.map((i) => i.id);
+  const { error: stampError } = await supabase
+    .from("trip_grocery_items")
+    .update({ added_to_inventory_at: new Date().toISOString() })
+    .in("id", itemIds);
+  if (stampError) throw stampError;
+
+  return { inserted, merged, itemsAdded: toAdd.length };
 }
