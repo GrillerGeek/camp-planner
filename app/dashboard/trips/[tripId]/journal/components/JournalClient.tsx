@@ -9,6 +9,8 @@ import {
   deleteJournalEntry,
   uploadJournalPhoto,
   getSignedJournalPhotoUrls,
+  JOURNAL_PHOTO_MAX_BYTES,
+  JOURNAL_PHOTO_ALLOWED_MIME,
 } from "@/lib/queries/journal";
 
 interface JournalClientProps {
@@ -44,11 +46,34 @@ export function JournalClient({
   const resolvePhotoUrl = (path: string) => signedUrls[path] ?? path;
 
   const handleFiles = useCallback((files: FileList | File[]) => {
-    const validFiles = Array.from(files).filter((f) =>
-      ["image/jpeg", "image/png", "image/webp", "image/heic"].includes(f.type)
-    );
-    setSelectedFiles((prev) => [...prev, ...validFiles]);
-  }, []);
+    const valid: File[] = [];
+    const rejected: string[] = [];
+    for (const f of Array.from(files)) {
+      if (
+        !f.type ||
+        !JOURNAL_PHOTO_ALLOWED_MIME.includes(
+          f.type as (typeof JOURNAL_PHOTO_ALLOWED_MIME)[number]
+        )
+      ) {
+        rejected.push(`${f.name} (unsupported type)`);
+        continue;
+      }
+      if (f.size > JOURNAL_PHOTO_MAX_BYTES) {
+        const mb = (f.size / (1024 * 1024)).toFixed(1);
+        rejected.push(`${f.name} (${mb} MB, max 10 MB)`);
+        continue;
+      }
+      valid.push(f);
+    }
+    if (valid.length > 0) {
+      setSelectedFiles((prev) => [...prev, ...valid]);
+    }
+    if (rejected.length > 0) {
+      setError(`Couldn't add: ${rejected.join(", ")}`);
+    } else if (error) {
+      setError(null);
+    }
+  }, [error]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -404,7 +429,7 @@ export function JournalClient({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp,image/heic"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/gif"
                   multiple
                   onChange={(e) =>
                     e.target.files && handleFiles(e.target.files)
@@ -412,7 +437,7 @@ export function JournalClient({
                   className="hidden"
                 />
                 <div className="text-camp-earth/40 text-xs mt-2">
-                  JPEG, PNG, WebP, HEIC
+                  JPEG, PNG, WebP, HEIC, GIF · 10 MB max
                 </div>
               </div>
 

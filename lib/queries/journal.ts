@@ -72,11 +72,48 @@ export async function deleteJournalEntry(
   if (error) throw error;
 }
 
+// Mirror the journal-photos bucket's file_size_limit + allowed_mime_types
+// (migration 014). Server enforces this regardless of client behavior; the
+// client check is for UX — rejects locally before sending bytes.
+export const JOURNAL_PHOTO_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+export const JOURNAL_PHOTO_ALLOWED_MIME = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+  "image/gif",
+] as const;
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export async function uploadJournalPhoto(
   supabase: SupabaseClient,
   tripId: string,
   file: File
 ): Promise<string> {
+  if (file.size > JOURNAL_PHOTO_MAX_BYTES) {
+    throw new Error(
+      `"${file.name}" is ${formatBytes(file.size)} — photos must be under ${formatBytes(
+        JOURNAL_PHOTO_MAX_BYTES
+      )}.`
+    );
+  }
+  if (
+    file.type &&
+    !JOURNAL_PHOTO_ALLOWED_MIME.includes(
+      file.type as (typeof JOURNAL_PHOTO_ALLOWED_MIME)[number]
+    )
+  ) {
+    throw new Error(
+      `"${file.name}" is not a supported image type (${file.type}). Use JPEG, PNG, WEBP, HEIC, or GIF.`
+    );
+  }
+
   const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
   const path = `${tripId}/${crypto.randomUUID()}.${fileExt}`;
 
@@ -85,6 +122,7 @@ export async function uploadJournalPhoto(
     .upload(path, file, {
       cacheControl: "3600",
       upsert: false,
+      contentType: file.type || undefined,
     });
 
   if (error) throw error;
