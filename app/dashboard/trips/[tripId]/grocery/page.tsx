@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getTripById, getUserRoleForTrip } from "@/lib/queries/trips";
-import { getTripGroceryList } from "@/lib/queries/grocery";
+import {
+  getTripGroceryList,
+  getGroceryStaleness,
+} from "@/lib/queries/grocery";
 import { GroceryListClient } from "./components/GroceryListClient";
 
 export default async function TripGroceryPage({
@@ -12,10 +15,11 @@ export default async function TripGroceryPage({
   const { tripId } = await params;
   const supabase = await createClient();
 
-  const [trip, role, groceryList] = await Promise.all([
+  const [trip, role, groceryList, staleness] = await Promise.all([
     getTripById(supabase, tripId),
     getUserRoleForTrip(supabase, tripId),
     getTripGroceryList(supabase, tripId),
+    getGroceryStaleness(supabase, tripId),
   ]);
 
   if (!trip || !role) {
@@ -76,6 +80,7 @@ export default async function TripGroceryPage({
         trip={trip}
         isPlanner={isPlanner}
         initialGroceryList={groceryList}
+        initialStale={staleness.isStale}
       />
     </div>
   );

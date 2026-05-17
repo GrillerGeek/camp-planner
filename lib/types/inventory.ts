@@ -27,6 +27,7 @@ export interface GroceryList {
   trip_id: string;
   created_at: string;
   updated_at: string;
+  last_generated_at: string | null;
 }
 
 export interface GroceryItem {

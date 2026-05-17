@@ -121,6 +121,57 @@ export async function getTripGroceryList(
   return data;
 }
 
+export interface GroceryStaleness {
+  isStale: boolean;
+  hasMealPlan: boolean;
+  hasGroceryItems: boolean;
+}
+
+/**
+ * "Stale" means: there is a meal plan AND the grocery list has items AND
+ * meals have changed since the last regeneration (or never been generated).
+ * Empty lists and trips without a meal plan are not surfaced as stale.
+ */
+export async function getGroceryStaleness(
+  supabase: SupabaseClient,
+  tripId: string
+): Promise<GroceryStaleness> {
+  const [{ data: plan }, { data: list }] = await Promise.all([
+    supabase
+      .from("trip_meal_plans")
+      .select("meals_changed_at")
+      .eq("trip_id", tripId)
+      .maybeSingle(),
+    supabase
+      .from("trip_grocery_lists")
+      .select("last_generated_at, trip_grocery_items(id)")
+      .eq("trip_id", tripId)
+      .maybeSingle(),
+  ]);
+
+  const hasMealPlan = !!plan;
+  const itemCount =
+    (list?.trip_grocery_items as { id: string }[] | undefined)?.length ?? 0;
+  const hasGroceryItems = itemCount > 0;
+
+  if (!hasMealPlan || !hasGroceryItems) {
+    return { isStale: false, hasMealPlan, hasGroceryItems };
+  }
+
+  if (!list?.last_generated_at) {
+    // Items exist but were never tagged with a generation time (e.g.,
+    // generated before migration 015). Not stale per se — surface the
+    // banner only if meals actually changed since the list's updated_at.
+    return { isStale: false, hasMealPlan, hasGroceryItems };
+  }
+
+  const isStale =
+    new Date(plan.meals_changed_at).getTime() >
+    new Date(list.last_generated_at).getTime();
+
+  return { isStale, hasMealPlan, hasGroceryItems };
+}
+
 async function getOrCreateGroceryList(
   supabase: SupabaseClient,
   tripId: string
@@ -315,6 +366,12 @@ export async function generateGroceryListFromMeals(
       .insert(newItems);
     if (insertError) throw insertError;
   }
+
+  // Stamp the generation time so getGroceryStaleness can detect drift.
+  await supabase
+    .from("trip_grocery_lists")
+    .update({ last_generated_at: new Date().toISOString() })
+    .eq("id", groceryList.id);
 
   // 7. Fetch and return the complete list
   const result = await getTripGroceryList(supabase, tripId);

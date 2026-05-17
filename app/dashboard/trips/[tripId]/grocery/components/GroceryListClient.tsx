@@ -23,6 +23,7 @@ interface GroceryListClientProps {
   trip: Trip;
   isPlanner: boolean;
   initialGroceryList: GroceryListWithItems | null;
+  initialStale: boolean;
 }
 
 export function GroceryListClient({
@@ -30,7 +31,9 @@ export function GroceryListClient({
   trip,
   isPlanner,
   initialGroceryList,
+  initialStale,
 }: GroceryListClientProps) {
+  const [isStale, setIsStale] = useState(initialStale);
   const [groceryList, setGroceryList] =
     useState<GroceryListWithItems | null>(initialGroceryList);
   const [items, setItems] = useState<GroceryItem[]>(
@@ -109,6 +112,7 @@ export function GroceryListClient({
       const result = await generateGroceryListFromMeals(supabase, tripId);
       setGroceryList(result);
       setItems(result.trip_grocery_items ?? []);
+      setIsStale(false);
     } catch (err) {
       setError(
         err instanceof Error
@@ -253,6 +257,29 @@ export function GroceryListClient({
       {error && (
         <div className="bg-red-500/10 border border-red-500/30 text-red-300 rounded-lg p-3 mb-4 text-sm">
           {error}
+        </div>
+      )}
+
+      {/* Stale-list banner: meal plan changed since last generation */}
+      {isStale && total > 0 && isPlanner && (
+        <div className="bg-camp-fire/10 border border-camp-fire/30 rounded-xl p-4 mb-4 flex items-center gap-3">
+          <span className="text-xl shrink-0">⚠️</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-white text-sm font-medium">
+              Meal plan changed since this list was generated.
+            </p>
+            <p className="text-camp-earth/80 text-xs">
+              Regenerate to pick up the changes. Manual items and purchased
+              state are preserved.
+            </p>
+          </div>
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="bg-camp-fire/80 hover:bg-camp-fire disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors shrink-0"
+          >
+            {generating ? "Regenerating..." : "Regenerate"}
+          </button>
         </div>
       )}
 
