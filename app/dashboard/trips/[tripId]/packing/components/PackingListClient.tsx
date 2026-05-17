@@ -211,15 +211,30 @@ export function PackingListClient({
     }
   }
 
-  // Assign item
-  async function handleAssign(itemId: string, userId: string | null) {
-    setItems((prev) =>
-      prev.map((i) => (i.id === itemId ? { ...i, assigned_to: userId } : i))
+  // Toggle a single assignee on/off for an item. Optimistic with revert.
+  async function handleToggleAssignee(itemId: string, userId: string) {
+    const prev = items;
+    setItems((current) =>
+      current.map((i) => {
+        if (i.id !== itemId) return i;
+        const has = i.assignees.includes(userId);
+        return {
+          ...i,
+          assignees: has
+            ? i.assignees.filter((id) => id !== userId)
+            : [...i.assignees, userId],
+        };
+      })
     );
     try {
-      await updatePackingItem(supabase, itemId, { assigned_to: userId });
+      const next = items.find((i) => i.id === itemId);
+      if (!next) return;
+      const updated = next.assignees.includes(userId)
+        ? next.assignees.filter((id) => id !== userId)
+        : [...next.assignees, userId];
+      await updatePackingItem(supabase, itemId, { assignees: updated });
     } catch {
-      // ignore
+      setItems(prev);
     }
   }
 
@@ -228,8 +243,8 @@ export function PackingListClient({
     filterMember === "all"
       ? items
       : filterMember === "unassigned"
-      ? items.filter((i) => !i.assigned_to)
-      : items.filter((i) => i.assigned_to === filterMember);
+      ? items.filter((i) => i.assignees.length === 0)
+      : items.filter((i) => i.assignees.includes(filterMember));
 
   // Group by category
   const grouped = filteredItems.reduce<Record<string, TripPackingItem[]>>(
@@ -410,11 +425,14 @@ export function PackingListClient({
                         }
                         disabled={
                           !isPlanner &&
-                          item.assigned_to !== currentUserId
+                          (!currentUserId ||
+                            !item.assignees.includes(currentUserId))
                         }
                         title={
-                          !isPlanner && item.assigned_to !== currentUserId
-                            ? "Only the assignee or a planner can mark this packed"
+                          !isPlanner &&
+                          (!currentUserId ||
+                            !item.assignees.includes(currentUserId))
+                            ? "Only an assignee or a planner can mark this packed"
                             : undefined
                         }
                         className={`w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
@@ -422,7 +440,9 @@ export function PackingListClient({
                             ? "bg-camp-forest border-camp-forest"
                             : "border-white/30 hover:border-camp-forest"
                         } ${
-                          !isPlanner && item.assigned_to !== currentUserId
+                          !isPlanner &&
+                          (!currentUserId ||
+                            !item.assignees.includes(currentUserId))
                             ? "cursor-not-allowed opacity-60"
                             : ""
                         }`}
@@ -475,35 +495,45 @@ export function PackingListClient({
                         )}
                       </div>
 
-                      {/* Assignment */}
+                      {/* Assignment — toggle-chip per member for planners,
+                          read-only name list for everyone else */}
                       {isPlanner && members.length > 1 ? (
-                        <select
-                          value={item.assigned_to ?? ""}
-                          onChange={(e) =>
-                            handleAssign(
-                              item.id,
-                              e.target.value || null
+                        <div className="flex flex-wrap gap-1 max-w-[200px] justify-end shrink-0">
+                          {members.map((m) => {
+                            const assigned = item.assignees.includes(m.user_id);
+                            const firstName =
+                              m.display_name.split(/\s+/)[0] ?? m.display_name;
+                            return (
+                              <button
+                                key={m.user_id}
+                                onClick={() =>
+                                  handleToggleAssignee(item.id, m.user_id)
+                                }
+                                title={
+                                  assigned
+                                    ? `Unassign ${m.display_name}`
+                                    : `Assign ${m.display_name}`
+                                }
+                                className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                                  assigned
+                                    ? "bg-camp-forest/25 border-camp-forest/60 text-camp-forest"
+                                    : "border-white/10 text-camp-earth/50 hover:text-camp-earth hover:border-white/20"
+                                }`}
+                              >
+                                {firstName}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : item.assignees.length > 0 ? (
+                        <span className="text-xs text-camp-earth/60 shrink-0">
+                          {item.assignees
+                            .map(
+                              (id) =>
+                                members.find((m) => m.user_id === id)
+                                  ?.display_name ?? "?"
                             )
-                          }
-                          className="bg-transparent border border-white/10 rounded px-2 py-1 text-xs text-camp-earth focus:outline-none focus:ring-1 focus:ring-camp-forest max-w-[120px] opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
-                        >
-                          <option value="" className="bg-camp-night">
-                            Unassigned
-                          </option>
-                          {members.map((m) => (
-                            <option
-                              key={m.user_id}
-                              value={m.user_id}
-                              className="bg-camp-night"
-                            >
-                              {m.display_name}
-                            </option>
-                          ))}
-                        </select>
-                      ) : item.assigned_to ? (
-                        <span className="text-xs text-camp-earth/60">
-                          {members.find((m) => m.user_id === item.assigned_to)
-                            ?.display_name ?? "Assigned"}
+                            .join(", ")}
                         </span>
                       ) : null}
 

@@ -39,7 +39,7 @@ export interface TripPackingItem {
   quantity: number;
   is_essential: boolean;
   is_packed: boolean;
-  assigned_to: string | null;
+  assignees: string[];
   notes: string | null;
   sort_order: number;
 }
@@ -60,7 +60,7 @@ export interface PackingItemFormData {
   category: string;
   quantity: number;
   notes: string;
-  assigned_to: string | null;
+  assignees: string[];
 }
 
 export const SEASONS = ["spring", "summer", "fall", "winter"] as const;

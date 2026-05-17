@@ -243,7 +243,7 @@ export async function addPackingItem(
     quantity?: number;
     is_essential?: boolean;
     notes?: string;
-    assigned_to?: string | null;
+    assignees?: string[];
     sort_order?: number;
   }
 ): Promise<TripPackingItem> {
@@ -256,7 +256,7 @@ export async function addPackingItem(
       quantity: item.quantity ?? 1,
       is_essential: item.is_essential ?? false,
       notes: item.notes?.trim() || null,
-      assigned_to: item.assigned_to || null,
+      assignees: item.assignees ?? [],
       sort_order: item.sort_order ?? 0,
     })
     .select()
@@ -275,7 +275,7 @@ export async function updatePackingItem(
     quantity: number;
     is_packed: boolean;
     is_essential: boolean;
-    assigned_to: string | null;
+    assignees: string[];
     notes: string;
     sort_order: number;
   }>
