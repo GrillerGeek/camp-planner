@@ -7,13 +7,15 @@ import {
   togglePacked,
   deletePackingItem,
   updatePackingItem,
-  autoPopulateFromTemplates,
+  applyPackingTemplate,
   getOrCreateTripPackingList,
+  getPackingTemplates,
 } from "@/lib/queries/packing";
 import {
   TripPackingItem,
   TripPackingListWithItems,
   CATEGORIES,
+  PackingTemplate,
 } from "@/lib/types/packing";
 import { Trip } from "@/lib/types/trip";
 
@@ -38,13 +40,20 @@ export function PackingListClient({
     initialPackingList?.trip_packing_items ?? []
   );
   const [loading, setLoading] = useState(false);
-  const [autoPopLoading, setAutoPopLoading] = useState(false);
   const [filterMember, setFilterMember] = useState<string>("all");
   const [newItem, setNewItem] = useState({
     name: "",
     category: "other",
     quantity: 1,
   });
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templates, setTemplates] = useState<
+    (PackingTemplate & { item_count: number })[]
+  >([]);
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [applyingTemplateId, setApplyingTemplateId] = useState<string | null>(
+    null
+  );
 
   const supabase = createClient();
 
@@ -92,24 +101,45 @@ export function PackingListClient({
     };
   }, [packingList?.id]);
 
-  // Auto-populate from templates
-  async function handleAutoPopulate() {
-    setAutoPopLoading(true);
+  // Load + show templates
+  async function handleShowTemplates() {
+    setShowTemplateModal(true);
+    setTemplateLoading(true);
     try {
-      const result = await autoPopulateFromTemplates(
-        supabase,
-        tripId,
-        trip.start_date,
-        trip.end_date
-      );
+      const tmpl = await getPackingTemplates(supabase);
+      setTemplates(tmpl);
+    } catch {
+      setTemplates([]);
+    } finally {
+      setTemplateLoading(false);
+    }
+  }
+
+  async function handleApplyTemplate(templateId: string) {
+    setApplyingTemplateId(templateId);
+    try {
+      const result = await applyPackingTemplate(supabase, tripId, templateId);
       setPackingList(result);
       setItems(result.trip_packing_items ?? []);
+      setShowTemplateModal(false);
     } catch {
       // ignore
     } finally {
-      setAutoPopLoading(false);
+      setApplyingTemplateId(null);
     }
   }
+
+  // Derive season from trip dates so we can mark season-matching templates.
+  const tripSeasons = (() => {
+    function s(d: string) {
+      const m = new Date(d + "T00:00:00").getMonth() + 1;
+      if (m >= 3 && m <= 5) return "spring";
+      if (m >= 6 && m <= 8) return "summer";
+      if (m >= 9 && m <= 11) return "fall";
+      return "winter";
+    }
+    return Array.from(new Set([s(trip.start_date), s(trip.end_date)]));
+  })();
 
   // Add new item
   async function handleAddItem(e: React.FormEvent) {
@@ -238,45 +268,25 @@ export function PackingListClient({
 
       {/* Actions Bar */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
-        {isPlanner && total === 0 && (
+        {isPlanner && (
           <button
-            onClick={handleAutoPopulate}
-            disabled={autoPopLoading}
-            className="bg-camp-sky hover:bg-camp-sky/80 disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+            onClick={handleShowTemplates}
+            className="bg-camp-sky hover:bg-camp-sky/80 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
           >
-            {autoPopLoading ? (
-              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24">
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  fill="none"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
-            ) : (
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
-                />
-              </svg>
-            )}
-            Auto-populate from templates
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 3.75H6.912a2.25 2.25 0 0 0-2.15 1.588L2.35 13.177a2.25 2.25 0 0 0-.1.661V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 0 0-2.15-1.588H15M2.25 13.5h3.86a2.25 2.25 0 0 1 2.012 1.244l.256.512a2.25 2.25 0 0 0 2.013 1.244h3.218a2.25 2.25 0 0 0 2.013-1.244l.256-.512a2.25 2.25 0 0 1 2.013-1.244h3.859M12 3v8.25m0 0-3-3m3 3 3-3"
+              />
+            </svg>
+            Apply template
           </button>
         )}
 
@@ -441,6 +451,14 @@ export function PackingListClient({
                             x{item.quantity}
                           </span>
                         )}
+                        {item.is_essential && (
+                          <span
+                            className="text-[10px] uppercase tracking-wider ml-1.5 px-1.5 py-0.5 rounded bg-camp-fire/15 text-camp-fire border border-camp-fire/30"
+                            title="Marked essential"
+                          >
+                            essential
+                          </span>
+                        )}
                         {item.notes && (
                           <p className="text-camp-earth/60 text-xs mt-0.5 truncate">
                             {item.notes}
@@ -506,6 +524,119 @@ export function PackingListClient({
                 </div>
               </div>
             ))}
+        </div>
+      )}
+
+      {/* Template picker modal */}
+      {showTemplateModal && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          onClick={() => !applyingTemplateId && setShowTemplateModal(false)}
+        >
+          <div
+            className="bg-camp-night border border-white/10 rounded-xl p-6 max-w-md w-full max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-lg font-semibold text-white">
+                Apply packing template
+              </h3>
+              <button
+                onClick={() => setShowTemplateModal(false)}
+                disabled={!!applyingTemplateId}
+                className="text-camp-earth hover:text-white transition-colors disabled:opacity-50"
+                aria-label="Close"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 18 18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+            <p className="text-camp-earth/70 text-xs mb-4">
+              Items merge with what you already have. Duplicates are skipped.
+            </p>
+
+            {templateLoading ? (
+              <div className="text-center py-8 text-camp-earth text-sm">
+                Loading templates...
+              </div>
+            ) : templates.length === 0 ? (
+              <div className="text-center py-8 text-camp-earth text-sm">
+                No packing templates yet. Create one from the Packing Templates page.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {templates.map((template) => {
+                  const seasonMatch = template.seasons.some((s) =>
+                    tripSeasons.includes(s)
+                  );
+                  const isApplying = applyingTemplateId === template.id;
+                  return (
+                    <button
+                      key={template.id}
+                      onClick={() => handleApplyTemplate(template.id)}
+                      disabled={!!applyingTemplateId}
+                      className={`w-full text-left bg-white/5 border rounded-lg p-3 hover:border-white/20 transition-colors disabled:opacity-50 ${
+                        seasonMatch
+                          ? "border-camp-sky/40"
+                          : "border-white/10"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-white font-medium text-sm">
+                          {template.name}
+                        </span>
+                        <span className="text-camp-earth/70 text-xs shrink-0">
+                          {isApplying
+                            ? "Applying..."
+                            : `${template.item_count} item${
+                                template.item_count !== 1 ? "s" : ""
+                              }`}
+                        </span>
+                      </div>
+                      {template.description && (
+                        <p className="text-camp-earth/60 text-xs mb-2 line-clamp-2">
+                          {template.description}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-1">
+                        {template.seasons.map((s) => (
+                          <span
+                            key={s}
+                            className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                              tripSeasons.includes(s)
+                                ? "bg-camp-sky/30 text-camp-sky"
+                                : "bg-white/10 text-camp-earth/70"
+                            }`}
+                          >
+                            {s}
+                          </span>
+                        ))}
+                        {template.trip_types.map((t) => (
+                          <span
+                            key={t}
+                            className="text-[10px] px-1.5 py-0.5 rounded-full bg-camp-fire/15 text-camp-fire/80"
+                          >
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

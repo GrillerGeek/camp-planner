@@ -37,6 +37,7 @@ export interface TripPackingItem {
   name: string;
   category: string;
   quantity: number;
+  is_essential: boolean;
   is_packed: boolean;
   assigned_to: string | null;
   notes: string | null;

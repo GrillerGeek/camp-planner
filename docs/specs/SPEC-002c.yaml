@@ -1,0 +1,106 @@
+spec:
+  id: "SPEC-002c"
+  name: "Template apply parity + correctness (audit P0 batch)"
+  product: "PROD-001"
+  parent: "SPEC-002"
+  status: "in_progress"
+  owner: "Jason Robey"
+  created: "2026-05-16"
+
+  origin: >
+    Promoted from the 2026-05-16 UX audit (docs/UX_AUDIT_2026-05-16.md).
+    Bundles the P0 findings around template apply + correctness. The user
+    surfaced the core gap ("you cannot select the template to apply") and
+    the code walkthrough found three adjacent correctness bugs in the
+    same flow.
+
+  context:
+    intentions:
+      - "INT-001"
+      - "INT-002"
+    expectations:
+      - "EXP-005 (extended — explicit template selection and re-apply)"
+
+  scope:
+    - id: "SPEC-002c.1"
+      summary: "Packing template picker modal (parity with tasks)"
+      problem: >
+        Packing only exposes a single "Auto-populate from templates" button
+        that merges all season-matching templates. No way to pick a
+        specific template. Tasks already has the right pattern — a modal
+        listing each template with per-template Apply buttons.
+      approach_hint: >
+        Replace the auto-populate button with an "Apply template" button
+        that opens a modal. Modal lists ALL templates with item counts +
+        season/type tags. Templates matching the trip season can be
+        highlighted or sorted to the top, but every template is pickable.
+
+    - id: "SPEC-002c.2"
+      summary: "Allow re-applying templates after items exist"
+      problem: >
+        The current button is gated on total === 0 — once any item exists,
+        the apply UI disappears entirely. Can't apply additional templates
+        to an existing list.
+      approach_hint: >
+        Remove the total === 0 gate. Apply should merge with existing
+        items, deduping by (category, name lowercase) the same way the
+        existing autoPopulateFromTemplates does.
+
+    - id: "SPEC-002c.3"
+      summary: "Propagate is_essential from template to trip items"
+      problem: >
+        packing_template_items.is_essential exists and is set via the
+        template UI, but trip_packing_items has no is_essential column,
+        and the apply code doesn't reference the flag. Templates marked
+        "essential" produce trip items that look exactly like the rest.
+      approach_hint: >
+        Migration: add is_essential boolean default false to
+        trip_packing_items. autoPopulateFromTemplates +
+        applyPackingTemplate carry the flag through. PackingListClient
+        renders an "essential" badge on items that have it set.
+
+    - id: "SPEC-002c.4"
+      summary: "Edit affordance for packing template items"
+      problem: >
+        Packing template items can only be deleted, not edited. Task
+        template items already have inline edit (TaskTemplateItemsEditor).
+        Direct asymmetry.
+      approach_hint: >
+        Mirror the task-template pattern: edit button per row, inline
+        form, save/cancel. Lets users tune templates without delete +
+        re-add.
+
+    - id: "SPEC-002c.5"
+      summary: "Restore notes field on packing template-item form"
+      problem: >
+        TemplateItemsEditor's new-item form has no notes input even though
+        the DB column and addTemplateItem() helper both support it. The
+        notes set by the seed SQL render, but new items from the UI can
+        never get notes.
+      approach_hint: >
+        Add a notes input to the new-item form.
+
+    - id: "SPEC-002c.6"
+      summary: "trip_type cleanup (deferred to SPEC-004b.2)"
+      problem: >
+        PackingTemplate.trip_types is settable but Trip has no trip_type
+        field — the filter does nothing. Audit flagged as P0 but the fix
+        touches Trip schema and is broader than this batch.
+      status: "deferred"
+      defer_to: "SPEC-004b.2"
+
+  deliverables:
+    - "supabase/migrations/011_packing_item_essentials.sql"
+    - "lib/queries/packing.ts: applyPackingTemplate; is_essential carried in autoPopulateFromTemplates + addPackingItem"
+    - "lib/types/packing.ts: TripPackingItem.is_essential"
+    - "app/dashboard/trips/[tripId]/packing/components/PackingListClient.tsx: template picker modal, always-on apply, essential badge"
+    - "app/dashboard/templates/components/TemplateItemsEditor.tsx: edit affordance + notes field"
+
+  validation:
+    human_review:
+      - "Trip with 0 packing items: 'Apply template' button visible; modal lists all templates"
+      - "Apply a template -> items appear, essential ones show an 'essential' badge"
+      - "After apply: 'Apply template' button STILL visible — can apply additional templates"
+      - "Apply same template twice: no duplicate items (dedup by category+name)"
+      - "Open a template's edit page: each item has an Edit button that opens an inline form"
+      - "New-item form on a template has a notes input"
