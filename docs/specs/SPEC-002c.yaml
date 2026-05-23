@@ -3,9 +3,17 @@ spec:
   name: "Template apply parity + correctness (audit P0 batch)"
   product: "PROD-001"
   parent: "SPEC-002"
-  status: "in_progress"
+  status: "shipped"
+  shipped_on: "2026-05-16"
   owner: "Jason Robey"
   created: "2026-05-16"
+
+  validation_completed:
+    method: "automated static walkthrough against commit b569798 (2026-05-23)"
+    notes: >
+      All 6 human_review steps passed via code-level verification against
+      PackingListClient, TemplateItemsEditor, applyPackingTemplate, and
+      migration 011. Deliverables list matches disk exactly. No drift.
 
   origin: >
     Promoted from the 2026-05-16 UX audit (docs/UX_AUDIT_2026-05-16.md).

@@ -3,9 +3,23 @@ spec:
   name: "Dashboard hygiene + trip lifecycle + viewer check-off"
   product: "PROD-001"
   parent: "SPEC-002"
-  status: "in_progress"
+  status: "shipped"
+  shipped_on: "2026-05-17"
   owner: "Jason Robey"
   created: "2026-05-17"
+
+  validation_completed:
+    method: "automated static walkthrough against commit 1a9fd41 (2026-05-23)"
+    notes: >
+      All 7 human_review steps passed via code-level verification.
+      Notable: migration 013 (multi-assignee, SPEC-004b.1) drops and
+      rebuilds migration 012's UPDATE policy and column-scope trigger to
+      use `assignees uuid[]` containment, so the live schema is fully
+      consistent — no stale assigned_to references. Viewer-scope trigger
+      is SECURITY DEFINER with locked search_path; raises
+      "Viewers may only toggle is_packed on their assigned items" when a
+      non-planner attempts to mutate name/category/quantity/is_essential/
+      assignees/notes/sort_order/packing_list_id.
 
   origin: >
     Promoted from the 2026-05-16 UX audit
