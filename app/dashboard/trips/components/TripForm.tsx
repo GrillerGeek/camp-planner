@@ -61,7 +61,7 @@ export function TripForm({ mode, initialData }: TripFormProps) {
         await updateTrip(supabase, initialData.id, form);
         router.push(`/dashboard/trips/${initialData.id}`);
       }
-    } catch (err) {
+    } catch {
       setErrors({ form: "Something went wrong. Please try again." });
     } finally {
       setLoading(false);

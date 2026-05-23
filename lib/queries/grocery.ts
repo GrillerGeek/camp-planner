@@ -217,17 +217,16 @@ export async function generateGroceryListFromMeals(
   // 1. Get or create the grocery list
   const groceryList = await getOrCreateGroceryList(supabase, tripId);
 
-  // 2. Get existing manual items and purchased states to preserve
+  // 2. Get existing purchased states to preserve across regeneration.
+  // Manual items are preserved via the `is_manual = false` filter on the
+  // delete step (5) below, so they don't need to be tracked here.
   const { data: existingItems } = await supabase
     .from("trip_grocery_items")
     .select("*")
     .eq("grocery_list_id", groceryList.id);
 
-  const manualItems = (existingItems ?? []).filter(
-    (item: GroceryItem) => item.is_manual
-  );
-  // Preserve purchased state across regeneration, keyed by (name, family) so
-  // a "2 cups flour" purchase isn't accidentally inherited by "1 lb flour".
+  // Keyed by (name, family) so a "2 cups flour" purchase isn't accidentally
+  // inherited by "1 lb flour".
   const purchasedMap = new Map<string, boolean>();
   (existingItems ?? []).forEach((item: GroceryItem) => {
     const normName = normalizeIngredientName(item.name);

@@ -110,7 +110,7 @@ export function TaskListClient({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [tripId]);
+  }, [tripId, supabase]);
 
   // Add new task
   async function handleAddTask(e: React.FormEvent) {

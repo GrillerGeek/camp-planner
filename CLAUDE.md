@@ -15,13 +15,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev      # next dev
-npm run build    # next build
-npm run start    # next start (prod)
-npm run lint     # eslint (flat config in eslint.config.mjs)
+npm run dev        # next dev
+npm run build      # next build
+npm run start      # next start (prod)
+npm run lint       # eslint (flat config in eslint.config.mjs)
+npm run typecheck  # tsc --noEmit
 ```
 
-No test runner is configured. There is no typecheck script — use `npx tsc --noEmit` if you need one.
+No test runner is configured.
 
 Env vars required at runtime: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`. AI features additionally need `AI_GATEWAY_API_KEY` (local dev) or `VERCEL_OIDC_TOKEN` (auto-provided on Vercel).
 

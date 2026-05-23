@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   addPackingItem,
@@ -60,18 +60,19 @@ export function PackingListClient({
   const supabase = createClient();
 
   // Realtime subscription for packing items
+  const packingListId = packingList?.id;
   useEffect(() => {
-    if (!packingList) return;
+    if (!packingListId) return;
 
     const channel = supabase
-      .channel(`packing-${packingList.id}`)
+      .channel(`packing-${packingListId}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "trip_packing_items",
-          filter: `packing_list_id=eq.${packingList.id}`,
+          filter: `packing_list_id=eq.${packingListId}`,
         },
         (payload) => {
           if (payload.eventType === "INSERT") {
@@ -101,7 +102,7 @@ export function PackingListClient({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [packingList?.id]);
+  }, [packingListId, supabase]);
 
   // Load + show templates
   async function handleShowTemplates() {

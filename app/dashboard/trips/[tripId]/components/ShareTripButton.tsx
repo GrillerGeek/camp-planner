@@ -13,11 +13,6 @@ interface ShareTripButtonProps {
   tripId: string;
 }
 
-interface FreshLink {
-  linkId: string;
-  plaintext: string;
-}
-
 export function ShareTripButton({ tripId }: ShareTripButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [links, setLinks] = useState<TripShareLink[]>([]);

@@ -63,18 +63,19 @@ export function GroceryListClient({
   const supabase = createClient();
 
   // Realtime subscription
+  const groceryListId = groceryList?.id;
   useEffect(() => {
-    if (!groceryList) return;
+    if (!groceryListId) return;
 
     const channel = supabase
-      .channel(`grocery-${groceryList.id}`)
+      .channel(`grocery-${groceryListId}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "trip_grocery_items",
-          filter: `grocery_list_id=eq.${groceryList.id}`,
+          filter: `grocery_list_id=eq.${groceryListId}`,
         },
         (payload) => {
           if (payload.eventType === "INSERT") {
@@ -107,7 +108,7 @@ export function GroceryListClient({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [groceryList?.id, supabase]);
+  }, [groceryListId, supabase]);
 
   // Generate from meals
   async function handleGenerate() {

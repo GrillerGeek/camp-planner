@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getPackingTemplates } from "@/lib/queries/packing";
-import { SEASONS, TRIP_TYPES } from "@/lib/types/packing";
 import { DeleteTemplateButton } from "./components/DeleteTemplateButton";
 
 export default async function TemplatesPage() {
