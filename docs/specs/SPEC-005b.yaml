@@ -72,6 +72,8 @@ spec:
 
     - id: "SPEC-005b.3"
       summary: "Recipe snapshot on meal assignment"
+      status: "shipped"
+      shipped_on: "2026-05-17"
       problem: >
         Editing a recipe today mutates the version shown on past trips —
         history becomes a lie. Should snapshot the recipe at assignment time.
@@ -81,6 +83,37 @@ spec:
         edits do not touch the snapshot. Pre-trip view reads live recipe,
         post-trip view reads snapshot.
       priority: "medium"
+      implementation: >
+        Migration 018 (supabase/migrations/018_meal_recipe_snapshot.sql) adds
+        a nullable jsonb column recipe_snapshot to trip_meals. Null means no
+        snapshot captured yet; pre-migration rows fall back to the live recipe,
+        matching the old behavior. No backfill: the recipe's state at original
+        assignment time is unknowable for existing rows.
+        lib/queries/meals.ts: addMeal fetches the live recipe via a new
+        fetchSnapshot helper and writes the snapshot at insert time.
+        updateMeal refreshes the snapshot only when recipe_id is part of the
+        update payload — clearing it to null when the meal is switched to a
+        custom name, and leaving it untouched when recipe_id is absent from
+        the update.
+        lib/types/meals.ts: RecipeSnapshot interface (subset of Recipe display
+        fields plus snapshot_at timestamp). TripMeal gains recipe_snapshot as
+        an optional nullable field.
+        MealEditModal: for trips with status "completed", the modal prefers
+        meal.recipe_snapshot over the live recipe; snapshotAsRecipe() adapter
+        casts RecipeSnapshot to the Recipe shape RecipeDetails accepts. The
+        "Swap recipe" and "Attach a recipe" buttons are disabled on completed
+        trips with a tooltip explaining why; "Use custom name" is hidden on
+        completed trips.
+        Hardening (2026-05-17): Migration 019
+        (019_recipe_snapshot_immutable.sql) adds a BEFORE UPDATE trigger
+        (SECURITY DEFINER, search_path locked) that raises an exception when
+        recipe_snapshot changes on a completed trip, closing the direct-client
+        bypass the UI guard cannot reach. fetchSnapshot in lib/queries/meals.ts
+        now accepts a context object (trip_id, meal_id, recipe_id) and throws
+        with those IDs included in the error message, making Vercel log
+        triage actionable when a snapshot write fails. MealEditModal gains a
+        saveError state rendered as a red banner above the modal footer so
+        planners see the failure and can retry without losing their edits.
 
     - id: "SPEC-005b.4"
       summary: "Recipe library search + filter + pagination"

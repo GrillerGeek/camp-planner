@@ -50,6 +50,8 @@ All database access goes through `lib/queries/<domain>.ts` modules (`trips`, `pa
 
 Server Components typically fan out with `Promise.all([...])` over multiple query helpers (see `app/dashboard/trips/[tripId]/page.tsx` for the readiness-card pattern).
 
+`lib/queries/meals.ts` captures a `recipe_snapshot` (jsonb) on `addMeal` and `updateMeal` whenever a `recipe_id` is written — do not remove this or skip `fetchSnapshot`; it is the frozen history read by `MealEditModal` on completed trips (SPEC-005b.3). Migration 019 adds a BEFORE UPDATE trigger that enforces snapshot immutability at the DB layer on completed trips; any write attempt raises an exception regardless of the caller's RLS scope.
+
 AI calls live under `lib/ai/<feature>.ts` (`server-only`) and are invoked from co-located `actions.ts` Server Actions (e.g. `app/dashboard/trips/[tripId]/meals/actions.ts`). The AI module returns typed values; the action handles authz (re-fetching the trip server-side) and wraps the call in an `{ ok: true | false }` discriminated union so the client can render structured errors. See `lib/ai/meal-suggestions.ts` for the canonical pattern: `generateText` + `Output.object` + a Zod schema.
 
 ### Realtime & optimistic updates (`lib/realtime/`)
@@ -64,7 +66,7 @@ AI calls live under `lib/ai/<feature>.ts` (`server-only`) and are invoked from c
 
 ### Database (`supabase/migrations/`)
 
-Schema lives in numbered SQL migrations (`001_initial_schema.sql` → `010_guest_sharing_v2.sql`). These are the source of truth — there are no generated types; hand-written TS types in `lib/types/` mirror the schema. **Every table has RLS enabled**; writing queries without thinking about `auth.uid()` / `trip_members` membership will silently return empty results. When adding a table, add the migration AND the RLS policies in the same file. Use the `public.is_trip_member_of(trip_id, user_id)` and `public.is_trip_planner(trip_id)` security-definer helpers (migrations 002/009) inside policies — do NOT write recursive `EXISTS (SELECT ... FROM trip_members)` checks; that footgun was already fixed once in migration 009.
+Schema lives in numbered SQL migrations (`001_initial_schema.sql` → `019_recipe_snapshot_immutable.sql`). These are the source of truth — there are no generated types; hand-written TS types in `lib/types/` mirror the schema. **Every table has RLS enabled**; writing queries without thinking about `auth.uid()` / `trip_members` membership will silently return empty results. When adding a table, add the migration AND the RLS policies in the same file. Use the `public.is_trip_member_of(trip_id, user_id)` and `public.is_trip_planner(trip_id)` security-definer helpers (migrations 002/009) inside policies — do NOT write recursive `EXISTS (SELECT ... FROM trip_members)` checks; that footgun was already fixed once in migration 009.
 
 Roles on `trip_members`: `planner` (full CRUD) vs `viewer` (read-only). Respect this at the UI layer too — `getUserRoleForTrip` is the canonical check.
 

@@ -1,11 +1,67 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import {
   Recipe,
+  RecipeSnapshot,
   TripMealPlan,
   TripMeal,
   TripMealPlanWithMeals,
   MealType,
 } from "@/lib/types/meals";
+
+// ============================================================
+// SNAPSHOT HELPER
+// ============================================================
+
+/**
+ * Build a recipe_snapshot payload from a live Recipe row.
+ * Only the fields consumed by RecipeDetails are captured; database-only
+ * fields (id, created_by, created_at, updated_at) are intentionally omitted.
+ */
+function buildRecipeSnapshot(recipe: Recipe): RecipeSnapshot {
+  return {
+    name: recipe.name,
+    description: recipe.description,
+    ingredients: recipe.ingredients,
+    instructions: recipe.instructions,
+    servings: recipe.servings,
+    prep_time_minutes: recipe.prep_time_minutes,
+    cook_time_minutes: recipe.cook_time_minutes,
+    tags: recipe.tags,
+    snapshot_at: new Date().toISOString(),
+  };
+}
+
+/**
+ * Fetch a recipe by id and return a snapshot, or null if recipe_id is null.
+ * Throws if the fetch fails (non-PGRST116 error) so the caller surfaces it.
+ *
+ * @param context - IDs included in any thrown error for actionable Vercel logs.
+ *   tripId  — the trip this meal belongs to (always available from the caller)
+ *   mealId  — the meal row being written ('new' when creating)
+ *   recipeId — the recipe being snapshotted (same as the recipeId arg)
+ */
+async function fetchSnapshot(
+  supabase: SupabaseClient,
+  recipeId: string | null | undefined,
+  context: { tripId: string; mealId?: string; recipeId: string }
+): Promise<RecipeSnapshot | null> {
+  if (!recipeId) return null;
+
+  const { data, error } = await supabase
+    .from("recipes")
+    .select("*")
+    .eq("id", recipeId)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") return null; // recipe deleted — degrade gracefully
+    throw new Error(
+      `fetchSnapshot failed: trip=${context.tripId} meal=${context.mealId ?? "new"} recipe=${context.recipeId}: ${error.message}`
+    );
+  }
+
+  return buildRecipeSnapshot(data as Recipe);
+}
 
 // ============================================================
 // RECIPES
@@ -179,6 +235,7 @@ export async function addMeal(
   supabase: SupabaseClient,
   meal: {
     meal_plan_id: string;
+    trip_id: string;
     day_date: string;
     meal_type: MealType;
     recipe_id?: string | null;
@@ -187,16 +244,24 @@ export async function addMeal(
     sort_order?: number;
   }
 ): Promise<TripMeal> {
+  const recipeId = meal.recipe_id || null;
+  const snapshot = await fetchSnapshot(supabase, recipeId, {
+    tripId: meal.trip_id,
+    mealId: "new",
+    recipeId: recipeId ?? "",
+  });
+
   const { data, error } = await supabase
     .from("trip_meals")
     .insert({
       meal_plan_id: meal.meal_plan_id,
       day_date: meal.day_date,
       meal_type: meal.meal_type,
-      recipe_id: meal.recipe_id || null,
+      recipe_id: recipeId,
       custom_meal_name: meal.custom_meal_name?.trim() || null,
       notes: meal.notes?.trim() || null,
       sort_order: meal.sort_order ?? 0,
+      recipe_snapshot: snapshot,
     })
     .select("*, recipes(*)")
     .single();
@@ -217,9 +282,43 @@ export async function updateMeal(
     sort_order: number;
   }>
 ): Promise<TripMeal> {
+  // Only touch recipe_snapshot when recipe_id is explicitly part of this update.
+  // - recipe_id present and non-null: fetch a fresh snapshot.
+  // - recipe_id present and null: clear the snapshot (meal switched to custom name).
+  // - recipe_id absent: leave the existing snapshot untouched.
+  const dbUpdates: Record<string, unknown> = { ...updates };
+  if ("recipe_id" in updates) {
+    // Fetch trip_id for structured error context. A single lightweight select
+    // before the update so the error log is immediately actionable in Vercel.
+    let tripId = "unknown";
+    const { data: mealRow } = await supabase
+      .from("trip_meals")
+      .select("meal_plan_id, trip_meal_plans(trip_id)")
+      .eq("id", mealId)
+      .single();
+    if (mealRow) {
+      const plans = mealRow.trip_meal_plans as
+        | { trip_id: string }
+        | { trip_id: string }[]
+        | null;
+      if (Array.isArray(plans) && plans.length > 0) {
+        tripId = plans[0].trip_id;
+      } else if (plans && !Array.isArray(plans)) {
+        tripId = plans.trip_id;
+      }
+    }
+
+    const snapshot = await fetchSnapshot(supabase, updates.recipe_id, {
+      tripId,
+      mealId,
+      recipeId: updates.recipe_id ?? "",
+    });
+    dbUpdates.recipe_snapshot = snapshot; // null when recipe_id is null
+  }
+
   const { data, error } = await supabase
     .from("trip_meals")
-    .update(updates)
+    .update(dbUpdates)
     .eq("id", mealId)
     .select("*, recipes(*)")
     .single();

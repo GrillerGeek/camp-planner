@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import {
   Recipe,
+  RecipeSnapshot,
   TripMeal,
   MEAL_TYPE_LABELS,
 } from "@/lib/types/meals";
+import { Trip } from "@/lib/types/trip";
 import { RecipeDetails } from "./RecipeDetails";
 
 interface MealEditModalProps {
@@ -13,6 +15,7 @@ interface MealEditModalProps {
   recipes: Recipe[];
   isPlanner: boolean;
   saving: boolean;
+  trip: Trip;
   onClose: () => void;
   onSave: (updates: {
     recipe_id: string | null;
@@ -21,11 +24,32 @@ interface MealEditModalProps {
   }) => Promise<void>;
 }
 
+/** Cast a RecipeSnapshot to the subset of Recipe fields that RecipeDetails reads. */
+function snapshotAsRecipe(snapshot: RecipeSnapshot): Recipe {
+  return {
+    // RecipeDetails only accesses the display fields; we supply safe defaults
+    // for the database-identity fields that are not stored in the snapshot.
+    id: "",
+    created_by: "",
+    created_at: snapshot.snapshot_at,
+    updated_at: snapshot.snapshot_at,
+    name: snapshot.name,
+    description: snapshot.description,
+    ingredients: snapshot.ingredients,
+    instructions: snapshot.instructions,
+    servings: snapshot.servings,
+    prep_time_minutes: snapshot.prep_time_minutes,
+    cook_time_minutes: snapshot.cook_time_minutes,
+    tags: snapshot.tags,
+  };
+}
+
 export function MealEditModal({
   meal,
   recipes,
   isPlanner,
   saving,
+  trip,
   onClose,
   onSave,
 }: MealEditModalProps) {
@@ -33,15 +57,27 @@ export function MealEditModal({
   const initialCustomName = meal.custom_meal_name ?? "";
   const initialNotes = meal.notes ?? "";
 
+  const isCompleted = trip.status === "completed";
+
   const [recipeId, setRecipeId] = useState<string | null>(initialRecipeId);
   const [customName, setCustomName] = useState(initialCustomName);
   const [notes, setNotes] = useState(initialNotes);
   const [recipeSearch, setRecipeSearch] = useState("");
   const [pickingRecipe, setPickingRecipe] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const selectedRecipe = recipeId
-    ? recipes.find((r) => r.id === recipeId) ?? meal.recipes ?? null
-    : null;
+  // For completed trips prefer the snapshot (history is frozen).
+  // For non-completed trips, or when no snapshot exists, fall back to the live
+  // recipe. The live lookup still uses recipeId from local state so that a
+  // planner who picks a new recipe (on a non-completed trip) sees it immediately.
+  const selectedRecipe: Recipe | null = (() => {
+    if (isCompleted && meal.recipe_snapshot) {
+      return snapshotAsRecipe(meal.recipe_snapshot);
+    }
+    return recipeId
+      ? recipes.find((r) => r.id === recipeId) ?? meal.recipes ?? null
+      : null;
+  })();
 
   // Close on Escape
   useEffect(() => {
@@ -67,6 +103,7 @@ export function MealEditModal({
   function handleClearRecipe() {
     setRecipeId(null);
     setPickingRecipe(false);
+    setSaveError(null);
   }
 
   function handlePickRecipe(r: Recipe) {
@@ -74,15 +111,20 @@ export function MealEditModal({
     setCustomName("");
     setPickingRecipe(false);
     setRecipeSearch("");
+    setSaveError(null);
   }
 
   async function handleSubmit() {
     if (!canSave) return;
-    await onSave({
-      recipe_id: recipeId,
-      custom_meal_name: recipeId ? null : customName.trim() || null,
-      notes: notes.trim() || null,
-    });
+    try {
+      await onSave({
+        recipe_id: recipeId,
+        custom_meal_name: recipeId ? null : customName.trim() || null,
+        notes: notes.trim() || null,
+      });
+    } catch {
+      setSaveError("Couldn't save your changes. Please try again.");
+    }
   }
 
   return (
@@ -133,7 +175,7 @@ export function MealEditModal({
               <input
                 type="text"
                 value={customName}
-                onChange={(e) => setCustomName(e.target.value)}
+                onChange={(e) => { setCustomName(e.target.value); setSaveError(null); }}
                 placeholder="Meal name..."
                 className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-white text-sm placeholder:text-camp-earth/50 focus:outline-none focus:ring-1 focus:ring-camp-forest/50"
               />
@@ -152,7 +194,7 @@ export function MealEditModal({
               </label>
               <textarea
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onChange={(e) => { setNotes(e.target.value); setSaveError(null); }}
                 placeholder="Notes (optional)..."
                 rows={2}
                 className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-white text-sm placeholder:text-camp-earth/50 focus:outline-none focus:ring-1 focus:ring-camp-forest/50 resize-none"
@@ -214,6 +256,13 @@ export function MealEditModal({
           )}
         </div>
 
+        {/* Save error banner */}
+        {saveError && (
+          <div className="mx-5 mb-3 px-3 py-2 bg-camp-fire/10 border border-camp-fire/30 rounded text-camp-fire text-xs">
+            {saveError}
+          </div>
+        )}
+
         {/* Footer */}
         {isPlanner && !pickingRecipe && (
           <div className="px-5 py-3 border-t border-white/10 flex items-center gap-2 flex-wrap">
@@ -221,24 +270,36 @@ export function MealEditModal({
               <>
                 <button
                   onClick={() => setPickingRecipe(true)}
-                  disabled={saving}
-                  className="bg-white/5 hover:bg-white/10 text-white text-xs font-medium py-1.5 px-3 rounded border border-white/10 transition-colors disabled:opacity-50"
+                  disabled={saving || isCompleted}
+                  title={
+                    isCompleted
+                      ? "Completed trips show the recipe as it was at assignment time."
+                      : undefined
+                  }
+                  className="bg-white/5 hover:bg-white/10 text-white text-xs font-medium py-1.5 px-3 rounded border border-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Swap recipe
                 </button>
-                <button
-                  onClick={handleClearRecipe}
-                  disabled={saving}
-                  className="text-camp-earth/60 hover:text-white text-xs py-1.5 px-2 transition-colors disabled:opacity-50"
-                >
-                  Use custom name
-                </button>
+                {!isCompleted && (
+                  <button
+                    onClick={handleClearRecipe}
+                    disabled={saving}
+                    className="text-camp-earth/60 hover:text-white text-xs py-1.5 px-2 transition-colors disabled:opacity-50"
+                  >
+                    Use custom name
+                  </button>
+                )}
               </>
             ) : (
               <button
                 onClick={() => setPickingRecipe(true)}
-                disabled={saving}
-                className="bg-white/5 hover:bg-white/10 text-white text-xs font-medium py-1.5 px-3 rounded border border-white/10 transition-colors disabled:opacity-50"
+                disabled={saving || isCompleted}
+                title={
+                  isCompleted
+                    ? "Completed trips show the recipe as it was at assignment time."
+                    : undefined
+                }
+                className="bg-white/5 hover:bg-white/10 text-white text-xs font-medium py-1.5 px-3 rounded border border-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Attach a recipe
               </button>

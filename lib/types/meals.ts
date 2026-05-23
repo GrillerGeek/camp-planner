@@ -4,6 +4,25 @@ export interface Ingredient {
   unit: string;
 }
 
+/**
+ * A point-in-time copy of the recipe fields consumed by RecipeDetails.
+ * Captured at meal-assignment time; never updated after that.
+ * Structurally compatible with the fields RecipeDetails reads from Recipe so
+ * the same component can render it without adapters.
+ */
+export interface RecipeSnapshot {
+  name: string;
+  description: string | null;
+  ingredients: Ingredient[];
+  instructions: string | null;
+  servings: number;
+  prep_time_minutes: number | null;
+  cook_time_minutes: number | null;
+  tags: string[];
+  /** ISO-8601 timestamp recording when this snapshot was captured. */
+  snapshot_at: string;
+}
+
 export interface Recipe {
   id: string;
   name: string;
@@ -46,6 +65,9 @@ export interface TripMeal {
   notes: string | null;
   sort_order: number;
   recipes?: Recipe | null;
+  /** Snapshot of the recipe as it existed at assignment time. Null for rows
+   *  written before SPEC-005b.3, or for custom-name meals with no recipe. */
+  recipe_snapshot?: RecipeSnapshot | null;
 }
 
 export interface TripMealPlanWithMeals extends TripMealPlan {

@@ -125,6 +125,7 @@ export function MealPlannerClient({
 
       const newMeal = await addMeal(supabase, {
         meal_plan_id: mealPlanId,
+        trip_id: tripId,
         day_date: activeSlot.dayDate,
         meal_type: activeSlot.mealType,
         recipe_id: recipe?.id ?? null,
@@ -208,6 +209,7 @@ export function MealPlannerClient({
       setEditingMeal(null);
     } catch (err) {
       console.error("Failed to update meal:", err);
+      throw err;
     } finally {
       setEditSaving(false);
     }
@@ -263,6 +265,7 @@ export function MealPlannerClient({
 
       const newMeal = await addMeal(supabase, {
         meal_plan_id: mealPlanId,
+        trip_id: tripId,
         day_date: targetDay,
         meal_type: suggestion.meal_type,
         recipe_id: matchingRecipe?.id ?? null,
@@ -696,6 +699,7 @@ export function MealPlannerClient({
           recipes={recipes}
           isPlanner={isPlanner}
           saving={editSaving}
+          trip={trip}
           onClose={() => setEditingMeal(null)}
           onSave={handleSaveMealEdit}
         />
