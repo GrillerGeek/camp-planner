@@ -31,13 +31,13 @@ Env vars required at runtime: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_
 
 Three entry points — pick based on where you are:
 
-- `server.ts` — `createClient()` for Server Components / Route Handlers / Server Actions. Reads cookies via `next/headers`. The `setAll` catch is intentional: it swallows the "cannot set cookies from Server Components" error, relying on middleware to refresh sessions.
+- `server.ts` — `createClient()` for Server Components / Route Handlers / Server Actions. Reads cookies via `next/headers`. The `setAll` catch is intentional: it swallows the "cannot set cookies from Server Components" error, relying on the root `proxy.ts` to refresh sessions.
 - `client.ts` — browser-side singleton for Client Components.
-- `middleware.ts` — `updateSession()` used by the root `middleware.ts`. Refreshes the session on every request and enforces auth redirects.
+- `middleware.ts` — `updateSession()` used by the root `proxy.ts`. Refreshes the session on every request and enforces auth redirects. (The file name is Supabase convention; despite the name it is not a Next file-convention middleware.)
 
 ### Auth & routing
 
-`middleware.ts` at the repo root guards the entire app. Public routes: `/`, `/login`, `/auth/*`, `/shared/*`. Everything else redirects to `/login` when unauthenticated; `/login` redirects to `/dashboard` when authed. The matcher excludes Next internals and static assets.
+`proxy.ts` at the repo root guards the entire app (Next 16 renamed the `middleware` file convention to `proxy`). Public routes: `/`, `/login`, `/auth/*`, `/shared/*`. Everything else redirects to `/login` when unauthenticated; `/login` redirects to `/dashboard` when authed. The matcher excludes Next internals and static assets.
 
 - `app/login/` — Google OAuth entry
 - `app/auth/` — OAuth callback
