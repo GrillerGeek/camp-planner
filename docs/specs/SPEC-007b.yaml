@@ -3,7 +3,8 @@ spec:
   name: "Task follow-ups: template provenance, relative due dates, dup-apply warning"
   product: "PROD-001"
   parent: "SPEC-007"
-  status: "backlog"
+  status: "shipped"
+  shipped_on: "2026-05-17"
   owner: "Jason Robey"
   created: "2026-05-15"
 
@@ -17,6 +18,8 @@ spec:
   scope:
     - id: "SPEC-007b.1"
       summary: "template_source_id on trip_tasks (provenance tracking)"
+      status: "shipped"
+      shipped_on: "2026-05-17"
       problem: >
         When a task template is applied, the resulting trip_tasks lose the
         link to their source template. Re-applying the same template
@@ -26,9 +29,16 @@ spec:
         on delete set null). applyTemplate inserts with this set. The
         duplicate-apply-template warning (SPEC-007b.3) reads from this.
       priority: "medium"
+      implementation: >
+        Migration 017 adds trip_tasks.template_source_id uuid (fk
+        task_template_items, on delete set null) plus a partial index for
+        the dup-apply lookup. applyTaskTemplate stamps it on every task it
+        produces. Commit 62e7e8d.
 
     - id: "SPEC-007b.2"
       summary: "relative_due_days and priority on task_template_items"
+      status: "shipped"
+      shipped_on: "2026-05-17"
       problem: >
         Template items today are just titles. No way to say "7 days before
         trip" or mark a priority. Every application requires manual editing.
@@ -37,9 +47,24 @@ spec:
         before trip start, positive = after) and priority text. applyTemplate
         computes due_date = trip.start_date + relative_due_days.
       priority: "medium"
+      implementation: >
+        Migration 017 adds task_template_items.relative_due_days int
+        (nullable; negative = before trip start, 0 = day-of, positive = after,
+        null = no due date) and priority text default 'medium' constrained to
+        low/medium/high (mirrors the trip_tasks priority constraint so the
+        value passes straight through on apply). applyTaskTemplate now takes
+        tripStartDate, computes due_date = start + relative_due_days when set,
+        and carries priority from the template item. TaskTemplateItemsEditor's
+        new-item and edit forms gain "Days from trip start" (with the neg=before
+        hint) and a priority select; read-only rows show non-default priority
+        and any relative_due_days as compact pill labels ("3d before", "high").
+        New-item form preserves priority between adds so a block of "all high"
+        items doesn't need re-selecting each time. Commit 62e7e8d.
 
     - id: "SPEC-007b.3"
       summary: "Duplicate-apply-template warning"
+      status: "shipped"
+      shipped_on: "2026-05-17"
       problem: >
         Applying the same template twice silently creates duplicate tasks.
       approach_hint: >
@@ -48,6 +73,10 @@ spec:
         Apply again anyway?"
       priority: "low"
       depends_on: ["SPEC-007b.1"]
+      implementation: >
+        New hasTasksFromTemplate(supabase, tripId, templateId) helper used by
+        the apply UI to decide whether to confirm before applying. Reads the
+        partial index added in SPEC-007b.1. Commit 62e7e8d.
 
   validation:
     human_review:

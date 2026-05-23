@@ -20,6 +20,8 @@ spec:
   scope:
     - id: "SPEC-004b.1"
       summary: "Multi-assignee packing items (EXP-007 compliance)"
+      status: "shipped"
+      shipped_on: "2026-05-17"
       problem: >
         packing_items.assigned_to is a single uuid, contradicting EXP-007
         which requires items to be assignable to multiple trip members.
@@ -30,6 +32,18 @@ spec:
         guest-share filter (currently `assigned_to is not null` and `= guest`)
         to use array containment.
       priority: "medium"
+      implementation: >
+        Migration 013 replaces trip_packing_items.assigned_to (uuid) with
+        assignees (uuid[] not null default '{}'), backfilling each non-null
+        value as a single-element array before dropping the old column.
+        Rebuilds the SPEC-002d.3 viewer policy + scope trigger to use array
+        containment (auth.uid() = ANY(assignees)) instead of equality, and
+        rebuilds get_shared_trip to aggregate assignee names via a lateral
+        unnest + string_agg. GIN index on assignees for cheap member-filter
+        queries. PackingListClient switches from a single-select dropdown to
+        per-member toggle chips (first name displayed). Tasks intentionally
+        untouched — single assigned_to matches their semantics ("buys ice"
+        is one person). Commit 529cf3f.
 
     - id: "SPEC-004b.2"
       summary: "trip_type matching in findMatchingTemplates"

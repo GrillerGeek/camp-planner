@@ -48,6 +48,8 @@ spec:
 
     - id: "SPEC-008b.3"
       summary: "Upload size + MIME validation for journal photos"
+      status: "shipped"
+      shipped_on: "2026-05-17"
       problem: >
         Photo uploads accept arbitrary size and type. Bucket could fill or
         get exotic files.
@@ -57,6 +59,21 @@ spec:
         and allowed_mime_types in the bucket config.
       priority: "high"
       reason: "Security/abuse — paired with the SPEC-008 storage lockdown."
+      implementation: >
+        Defense in depth: Migration 014 sets the storage bucket
+        file_size_limit = 10 MB and restricts allowed_mime_types to image
+        formats (jpeg, png, webp, heic, heif, gif) — Supabase Storage
+        rejects oversized or wrong-type uploads regardless of client
+        behavior (the actual guarantee). Client side, uploadJournalPhoto +
+        handleFiles mirror the same limits so the user gets immediate
+        feedback before sending bytes, and rejected files surface a
+        specific "<file> (5.2 MB, max 10 MB)" message via the existing
+        error banner instead of being silently dropped. Constants
+        (JOURNAL_PHOTO_MAX_BYTES, JOURNAL_PHOTO_ALLOWED_MIME) exported from
+        lib/queries/journal.ts so client + server share one source of
+        truth. File input's accept attribute and hint text widened to
+        include heif and gif. Closes the 2026-05-16 UX audit B3 finding.
+        Commit d8eb31a.
 
   validation:
     human_review:
