@@ -1,24 +1,32 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Trip } from "@/lib/types/trip";
-
-interface PastTrip extends Trip {
-  journal_snippet?: string;
-}
+import {
+  getLatestJournalSnippetsForTrips,
+  searchJournalEntries,
+  type JournalSearchMatch,
+} from "@/lib/queries/journal";
 
 export default function HistoryPage() {
-  const [trips, setTrips] = useState<PastTrip[]>([]);
-  const [filteredTrips, setFilteredTrips] = useState<PastTrip[]>([]);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [latestSnippets, setLatestSnippets] = useState<Map<string, string>>(
+    new Map()
+  );
+  const [journalMatches, setJournalMatches] = useState<
+    Map<string, JournalSearchMatch>
+  >(new Map());
   const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
   const supabase = createClient();
 
+  // Initial load: trips + batched latest snippets (no N+1).
   useEffect(() => {
     async function loadTrips() {
       try {
@@ -29,29 +37,16 @@ export default function HistoryPage() {
           .order("end_date", { ascending: false });
 
         if (error) throw error;
-
-        const completedTrips: PastTrip[] = tripData ?? [];
-
-        // Fetch latest journal snippet for each trip
-        for (const trip of completedTrips) {
-          const { data: journalData } = await supabase
-            .from("trip_journal_entries")
-            .select("content")
-            .eq("trip_id", trip.id)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (journalData?.content) {
-            trip.journal_snippet =
-              journalData.content.length > 120
-                ? journalData.content.substring(0, 120) + "..."
-                : journalData.content;
-          }
-        }
-
+        const completedTrips: Trip[] = tripData ?? [];
         setTrips(completedTrips);
-        setFilteredTrips(completedTrips);
+
+        if (completedTrips.length > 0) {
+          const snippets = await getLatestJournalSnippetsForTrips(
+            supabase,
+            completedTrips.map((t) => t.id)
+          );
+          setLatestSnippets(snippets);
+        }
       } catch {
         // Silently handle errors
       } finally {
@@ -62,10 +57,34 @@ export default function HistoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const applyFilters = useCallback(() => {
+  // Debounced journal search. Runs only when the user has typed
+  // something; clears matches when the field is empty.
+  useEffect(() => {
+    const trimmed = search.trim();
+    if (!trimmed) {
+      setJournalMatches(new Map());
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    const timeoutId = setTimeout(async () => {
+      try {
+        const matches = await searchJournalEntries(supabase, trimmed);
+        setJournalMatches(matches);
+      } catch {
+        setJournalMatches(new Map());
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timeoutId);
+  }, [search, supabase]);
+
+  const filteredTrips = useMemo(() => {
     let result = [...trips];
 
-    // Search filter
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -73,26 +92,17 @@ export default function HistoryPage() {
           t.name.toLowerCase().includes(q) ||
           t.destination.toLowerCase().includes(q) ||
           (t.notes && t.notes.toLowerCase().includes(q)) ||
-          (t.journal_snippet && t.journal_snippet.toLowerCase().includes(q))
+          journalMatches.has(t.id)
       );
     }
 
-    // Date range filter
-    if (dateFrom) {
-      result = result.filter((t) => t.start_date >= dateFrom);
-    }
-    if (dateTo) {
-      result = result.filter((t) => t.end_date <= dateTo);
-    }
+    if (dateFrom) result = result.filter((t) => t.start_date >= dateFrom);
+    if (dateTo) result = result.filter((t) => t.end_date <= dateTo);
 
-    setFilteredTrips(result);
-  }, [trips, search, dateFrom, dateTo]);
+    return result;
+  }, [trips, search, dateFrom, dateTo, journalMatches]);
 
-  useEffect(() => {
-    applyFilters();
-  }, [applyFilters]);
-
-  const formatDateRange = (start: string, end: string) => {
+  const formatDateRange = useCallback((start: string, end: string) => {
     const s = new Date(start + "T00:00:00");
     const e = new Date(end + "T00:00:00");
     const opts: Intl.DateTimeFormatOptions = {
@@ -103,7 +113,7 @@ export default function HistoryPage() {
       return `${s.toLocaleDateString("en-US", { ...opts, year: "numeric" })} - ${e.toLocaleDateString("en-US", { ...opts, year: "numeric" })}`;
     }
     return `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", { ...opts, year: "numeric" })}`;
-  };
+  }, []);
 
   if (loading) {
     return (
@@ -118,21 +128,26 @@ export default function HistoryPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white mb-1">Trip History</h1>
         <p className="text-camp-earth text-sm">
-          Browse and search your completed trips.
+          Browse and search your completed trips — including the full journal.
         </p>
       </div>
 
       {/* Filters */}
       <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="sm:col-span-3">
+          <div className="sm:col-span-3 relative">
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by destination, trip name, or keyword..."
+              placeholder="Search trip name, destination, or any journal entry..."
               className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-camp-earth/40 focus:outline-none focus:border-camp-forest"
             />
+            {searching && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-camp-earth/60 text-xs">
+                Searching...
+              </span>
+            )}
           </div>
           <div>
             <label className="block text-camp-earth/60 text-xs mb-1">
@@ -206,39 +221,94 @@ export default function HistoryPage() {
       {/* Trip list */}
       {filteredTrips.length > 0 && (
         <div className="space-y-3">
-          {filteredTrips.map((trip) => (
-            <Link
-              key={trip.id}
-              href={`/dashboard/trips/${trip.id}`}
-              className="block bg-white/5 border border-white/10 rounded-xl p-5 hover:border-white/20 transition-colors"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-white font-semibold truncate">
-                    {trip.name}
-                  </h3>
-                  <div className="flex items-center gap-3 mt-1">
-                    <span className="text-camp-earth text-sm">
-                      {trip.destination}
-                    </span>
-                    <span className="text-camp-earth/40 text-sm">
-                      {formatDateRange(trip.start_date, trip.end_date)}
-                    </span>
+          {filteredTrips.map((trip) => {
+            const journalMatch = journalMatches.get(trip.id);
+            const fallbackSnippet = latestSnippets.get(trip.id);
+            return (
+              <Link
+                key={trip.id}
+                href={`/dashboard/trips/${trip.id}`}
+                className="block bg-white/5 border border-white/10 rounded-xl p-5 hover:border-white/20 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-white font-semibold truncate">
+                      {trip.name}
+                    </h3>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-camp-earth text-sm">
+                        {trip.destination}
+                      </span>
+                      <span className="text-camp-earth/40 text-sm">
+                        {formatDateRange(trip.start_date, trip.end_date)}
+                      </span>
+                    </div>
+                    {journalMatch ? (
+                      <p className="text-camp-earth/70 text-sm mt-2 line-clamp-2">
+                        <SnippetWithHighlights snippet={journalMatch.snippet} />
+                      </p>
+                    ) : fallbackSnippet ? (
+                      <p className="text-camp-earth/60 text-sm mt-2 line-clamp-2">
+                        {fallbackSnippet}
+                      </p>
+                    ) : null}
                   </div>
-                  {trip.journal_snippet && (
-                    <p className="text-camp-earth/60 text-sm mt-2 line-clamp-2">
-                      {trip.journal_snippet}
-                    </p>
-                  )}
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-camp-forest/20 text-camp-forest shrink-0">
+                    Completed
+                  </span>
                 </div>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-camp-forest/20 text-camp-forest shrink-0">
-                  Completed
-                </span>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Renders a snippet from search_journal_entries by splitting on the
+ * « / » markers and wrapping each marked span in a <mark>. Pure text
+ * splitting — no HTML parsing — so it's XSS-safe by construction.
+ */
+function SnippetWithHighlights({ snippet }: { snippet: string }) {
+  const parts: Array<{ text: string; highlight: boolean }> = [];
+  let cursor = 0;
+  while (cursor < snippet.length) {
+    const start = snippet.indexOf("«", cursor);
+    if (start === -1) {
+      parts.push({ text: snippet.slice(cursor), highlight: false });
+      break;
+    }
+    if (start > cursor) {
+      parts.push({ text: snippet.slice(cursor, start), highlight: false });
+    }
+    const end = snippet.indexOf("»", start);
+    if (end === -1) {
+      // Malformed (no close marker) — render the rest as plain text.
+      parts.push({ text: snippet.slice(start), highlight: false });
+      break;
+    }
+    parts.push({
+      text: snippet.slice(start + 1, end),
+      highlight: true,
+    });
+    cursor = end + 1;
+  }
+  return (
+    <>
+      {parts.map((p, i) =>
+        p.highlight ? (
+          <mark
+            key={i}
+            className="bg-camp-fire/30 text-white rounded px-0.5"
+          >
+            {p.text}
+          </mark>
+        ) : (
+          <span key={i}>{p.text}</span>
+        )
+      )}
+    </>
   );
 }

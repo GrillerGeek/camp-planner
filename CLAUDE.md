@@ -67,7 +67,7 @@ AI calls live under `lib/ai/<feature>.ts` (`server-only`) and are invoked from c
 
 ### Database (`supabase/migrations/`)
 
-Schema lives in numbered SQL migrations (`001_initial_schema.sql` → `020_share_audit_log.sql`). These are the source of truth — there are no generated types; hand-written TS types in `lib/types/` mirror the schema. **Every table has RLS enabled**; writing queries without thinking about `auth.uid()` / `trip_members` membership will silently return empty results. When adding a table, add the migration AND the RLS policies in the same file. Use the `public.is_trip_member_of(trip_id, user_id)` and `public.is_trip_planner(trip_id)` security-definer helpers (migrations 002/009) inside policies — do NOT write recursive `EXISTS (SELECT ... FROM trip_members)` checks; that footgun was already fixed once in migration 009.
+Schema lives in numbered SQL migrations (`001_initial_schema.sql` → `021_journal_search_tsvector.sql`). These are the source of truth — there are no generated types; hand-written TS types in `lib/types/` mirror the schema. **Every table has RLS enabled**; writing queries without thinking about `auth.uid()` / `trip_members` membership will silently return empty results. When adding a table, add the migration AND the RLS policies in the same file. Use the `public.is_trip_member_of(trip_id, user_id)` and `public.is_trip_planner(trip_id)` security-definer helpers (migrations 002/009) inside policies — do NOT write recursive `EXISTS (SELECT ... FROM trip_members)` checks; that footgun was already fixed once in migration 009.
 
 Roles on `trip_members`: `planner` (full CRUD) vs `viewer` (read-only). Respect this at the UI layer too — `getUserRoleForTrip` is the canonical check.
 

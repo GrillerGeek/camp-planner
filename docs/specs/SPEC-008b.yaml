@@ -37,6 +37,8 @@ spec:
 
     - id: "SPEC-008b.2"
       summary: "History search across all journal entries"
+      status: "shipped"
+      shipped_on: "2026-05-24"
       problem: >
         Trip history search today only looks at the latest journal entry
         per trip (N+1 query, misses older entries).
@@ -45,6 +47,49 @@ spec:
         Replace the latest-entry query with a search across all entries.
         UI: highlight matching snippets.
       priority: "medium"
+      implementation: >
+        Migration 021 adds trip_journal_entries.search_tsv tsvector,
+        maintained by a BEFORE INSERT/UPDATE trigger
+        (update_journal_entry_search_tsv, SECURITY INVOKER, search_path
+        locked) keyed off content with the 'english' text-search config
+        (stemming, so 'firewood'/'firewoods' both match). Existing rows
+        are backfilled in the migration. GIN index for index-backed
+        @@ queries.
+
+        search_journal_entries(_query text) RPC returns
+        (trip_id, snippet, created_at) rows for every matching entry,
+        ordered by created_at desc. SECURITY INVOKER so RLS still scopes
+        results to trips the caller is a member of — no special filter
+        needed. Uses websearch_to_tsquery (not to_tsquery) so user input
+        is parsed gracefully without throwing on malformed queries.
+
+        ts_headline emits snippets with custom « / » markers around
+        matches rather than the default <b></b>. The history page's
+        SnippetWithHighlights component splits on these markers and
+        wraps each matched span in a <mark> via normal React text
+        rendering — XSS-safe by construction, no HTML parsing.
+
+        lib/queries/journal.ts:
+        - getLatestJournalSnippetsForTrips(supabase, tripIds) — single
+          batched query returning a Map<tripId, snippet>; replaces the
+          N+1 loop the history page used to do at line 36-51 of the
+          old page.tsx.
+        - searchJournalEntries(supabase, query) — calls the RPC, dedupes
+          to one match per trip (most recent matching entry).
+
+        app/dashboard/history/page.tsx: load all completed trips +
+        batched latest snippets at mount. Debounced (250ms) journal
+        search hits the RPC on search-input change; matches override the
+        fallback snippet on the card with highlighted spans. Date filter
+        and trip-field text search (name/destination/notes) still run
+        client-side; journal matches union with the text-field matches.
+        Loading state shows "Searching..." badge during the debounced
+        RPC call.
+
+        validation per spec: "'great firewood' in trip A's oldest entry;
+        trip B newer with no match. Search 'firewood' finds trip A" —
+        works because the search hits the tsv index across ALL entries,
+        not just the latest.
 
     - id: "SPEC-008b.3"
       summary: "Upload size + MIME validation for journal photos"
