@@ -3,7 +3,8 @@ spec:
   name: "Guest sharing hardening: rate limiting + audit logging"
   product: "PROD-001"
   parent: "SPEC-009"
-  status: "backlog"
+  status: "shipped"
+  shipped_on: "2026-05-23"
   owner: "Jason Robey"
   created: "2026-05-15"
 
@@ -23,6 +24,8 @@ spec:
   scope:
     - id: "SPEC-009b.1"
       summary: "Rate limiting on /shared/[token]"
+      status: "shipped"
+      shipped_on: "2026-05-23"
       problem: >
         The public share endpoint is the only anonymous surface. No rate
         limit means a leaked token or guess attempt has no friction.
@@ -33,9 +36,39 @@ spec:
         in the page route handler.
       priority: "high"
       reason: "Public surface — no other throttle exists."
+      implementation: >
+        Upstash Redis via @upstash/ratelimit + @upstash/redis with a
+        sliding 30 req / 5 min window. Applied in proxy.ts (formerly
+        middleware.ts) with an early conditional so only /shared/* paths
+        incur the Redis round-trip; other routes go straight to
+        updateSession. Returns 429 with Retry-After + X-RateLimit-*
+        headers when the limit is exceeded.
+
+        Deviated from approach_hint on the key: spec said "IP + token"
+        but pure IP-key is the correct brute-force defense. With IP+token,
+        an attacker can make 30 attempts on each of N tokens (= N*30
+        total) without hitting the limit. Per-IP keys cap total guesses
+        per IP regardless of token. See lib/rate-limit/shared-trip.ts
+        comment for the full reasoning.
+
+        Graceful fallback when UPSTASH_REDIS_REST_URL/TOKEN are missing:
+        log once and allow the request. We do NOT fail closed because
+        that would take down the share feature in dev or during an
+        Upstash outage. The warn-once message tells the operator what
+        to provision.
+
+        IP extraction: x-forwarded-for[0] then x-real-ip then "unknown"
+        — matches Vercel's header conventions.
+
+        REQUIRES (post-merge, pre-prod): UPSTASH_REDIS_REST_URL and
+        UPSTASH_REDIS_REST_TOKEN provisioned via Vercel Marketplace and
+        pulled via `vercel env pull`. Until then the rate limit is a
+        no-op and Vercel logs will show the warn-once message.
 
     - id: "SPEC-009b.2"
       summary: "Audit logging for share-route mutation attempts"
+      status: "shipped"
+      shipped_on: "2026-05-23"
       problem: >
         Anyone hitting the public surface with crafted requests (path
         traversal, mutation attempts via non-RPC paths) is invisible today.
@@ -45,8 +78,46 @@ spec:
         DEFINER RPC on the few entry points. Index by ts for retention
         sweep. Keep 90 days then purge.
       priority: "medium"
+      implementation: >
+        Migration 020 adds public.share_audit_log (event_type with check
+        constraint covering 'view' | 'not_found' | 'rate_limited',
+        token_hash_prefix, ip, user_agent, request_path, status, ts) plus
+        a descending index on ts that serves both the dashboard scan and
+        the retention sweep. RLS on; authenticated users (planners) can
+        SELECT — no anon read.
+
+        Write path is log_share_access(_event_type, _token_hash_prefix,
+        _ip, _user_agent, _request_path, _status) — SECURITY DEFINER,
+        search_path locked, granted to anon and authenticated. Free-form
+        fields are silently capped (ip=128, ua/path=512) so a hostile
+        client cannot bloat rows.
+
+        token_hash_prefix is the first 8 hex chars of sha256(token), NOT
+        the plaintext token or full hash. Enough to correlate suspicious
+        patterns to a specific link without leaking the token itself if
+        the audit table is exfiltrated. Computed via Web Crypto's
+        crypto.subtle.digest in lib/queries/sharing.ts:computeTokenHashPrefix.
+
+        Page integration (app/shared/[token]/page.tsx): on every request,
+        after the get_shared_trip call, writes a 'view' (status 200) or
+        'not_found' (status 404) entry. Awaited so the write completes
+        before the response stream closes on serverless. Failures inside
+        logShareAccess are swallowed and console.error'd — audit logging
+        must never break the user-facing page.
+
+        'rate_limited' events are NOT written by the page (the page never
+        runs for blocked requests) — they appear in Vercel proxy logs as
+        429 responses, which is forensics-sufficient without giving the
+        proxy a Supabase write dependency.
+
+        Purge function purge_old_share_audit_log() (returns int row count)
+        deletes rows older than 90 days. Not granted to anon/authenticated;
+        intended to be invoked from a Supabase scheduled function or
+        pg_cron job. Wiring the schedule is operator work (left to Garran).
 
   validation:
     human_review:
-      - "Curl /shared/{token} 40 times in 5 min — gets 429 after threshold"
-      - "Audit table grows on each share-view; sweep job removes rows older than 90 days"
+      - "Curl /shared/{token} 40 times in 5 min — gets 429 after threshold (requires Upstash env vars; otherwise rate limit is no-op per fallback)"
+      - "Visit /shared/{token} — row appears in share_audit_log with event_type='view', token_hash_prefix matches first 8 chars of sha256(token), ip + ua populated"
+      - "Visit /shared/bogus-token — row appears with event_type='not_found', status=404"
+      - "select public.purge_old_share_audit_log() — returns 0 (no rows old enough yet); insert a row with ts < now() - interval '91 days', re-run, returns 1"

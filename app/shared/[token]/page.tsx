@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
+import { headers } from "next/headers";
 import type { Metadata } from "next";
-import { getSharedTripByToken } from "@/lib/queries/sharing";
+import {
+  computeTokenHashPrefix,
+  getSharedTripByToken,
+  logShareAccess,
+} from "@/lib/queries/sharing";
 import { formatDateRange } from "@/lib/utils/dates";
 
 // Anonymous Supabase client — the anon key only, no service role. All data
@@ -43,6 +48,24 @@ export default async function SharedTripPage({
   const { token } = await params;
   const supabase = createAnonClient();
   const data = await getSharedTripByToken(supabase, token);
+
+  // SPEC-009b.2: log this access. Failures inside logShareAccess are
+  // swallowed so the user-facing page can never be broken by audit-log
+  // outages. We await here (rather than fire-and-forget) so the write
+  // happens before the response stream closes on serverless runtimes.
+  const reqHeaders = await headers();
+  const tokenHashPrefix = await computeTokenHashPrefix(token);
+  await logShareAccess(supabase, {
+    eventType: data ? "view" : "not_found",
+    tokenHashPrefix,
+    ip:
+      reqHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+      reqHeaders.get("x-real-ip") ??
+      null,
+    userAgent: reqHeaders.get("user-agent"),
+    requestPath: `/shared/${token.slice(0, 8)}...`,
+    status: data ? 200 : 404,
+  });
 
   if (!data) {
     return (

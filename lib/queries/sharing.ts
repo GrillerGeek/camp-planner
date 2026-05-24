@@ -68,3 +68,49 @@ export async function getSharedTripByToken(
   if (error || !data) return null;
   return data as SharedTripData;
 }
+
+/**
+ * Computes the first 8 hex chars of sha256(token) — used by the audit log
+ * to correlate access patterns to a specific link without storing the
+ * token plaintext or its full hash. Matches the prefix length stored in
+ * share_audit_log.token_hash_prefix.
+ */
+export async function computeTokenHashPrefix(
+  tokenPlaintext: string
+): Promise<string> {
+  const bytes = new TextEncoder().encode(tokenPlaintext);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const hex = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return hex.slice(0, 8);
+}
+
+/**
+ * Writes an entry to share_audit_log via the SECURITY DEFINER RPC.
+ * Errors are swallowed and logged — audit logging must never break the
+ * user-facing share page. Call with an anonymous Supabase client.
+ */
+export async function logShareAccess(
+  supabase: SupabaseClient,
+  args: {
+    eventType: "view" | "not_found" | "rate_limited";
+    tokenHashPrefix: string | null;
+    ip: string | null;
+    userAgent: string | null;
+    requestPath: string | null;
+    status: number;
+  }
+): Promise<void> {
+  const { error } = await supabase.rpc("log_share_access", {
+    _event_type: args.eventType,
+    _token_hash_prefix: args.tokenHashPrefix,
+    _ip: args.ip,
+    _user_agent: args.userAgent,
+    _request_path: args.requestPath,
+    _status: args.status,
+  });
+  if (error) {
+    console.error("[share-audit] log_share_access failed:", error.message);
+  }
+}

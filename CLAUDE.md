@@ -67,9 +67,13 @@ AI calls live under `lib/ai/<feature>.ts` (`server-only`) and are invoked from c
 
 ### Database (`supabase/migrations/`)
 
-Schema lives in numbered SQL migrations (`001_initial_schema.sql` → `019_recipe_snapshot_immutable.sql`). These are the source of truth — there are no generated types; hand-written TS types in `lib/types/` mirror the schema. **Every table has RLS enabled**; writing queries without thinking about `auth.uid()` / `trip_members` membership will silently return empty results. When adding a table, add the migration AND the RLS policies in the same file. Use the `public.is_trip_member_of(trip_id, user_id)` and `public.is_trip_planner(trip_id)` security-definer helpers (migrations 002/009) inside policies — do NOT write recursive `EXISTS (SELECT ... FROM trip_members)` checks; that footgun was already fixed once in migration 009.
+Schema lives in numbered SQL migrations (`001_initial_schema.sql` → `020_share_audit_log.sql`). These are the source of truth — there are no generated types; hand-written TS types in `lib/types/` mirror the schema. **Every table has RLS enabled**; writing queries without thinking about `auth.uid()` / `trip_members` membership will silently return empty results. When adding a table, add the migration AND the RLS policies in the same file. Use the `public.is_trip_member_of(trip_id, user_id)` and `public.is_trip_planner(trip_id)` security-definer helpers (migrations 002/009) inside policies — do NOT write recursive `EXISTS (SELECT ... FROM trip_members)` checks; that footgun was already fixed once in migration 009.
 
 Roles on `trip_members`: `planner` (full CRUD) vs `viewer` (read-only). Respect this at the UI layer too — `getUserRoleForTrip` is the canonical check.
+
+### Public share surface
+
+The `/shared/[token]` route is the only anonymous entry point. It reads via the `get_shared_trip` SECURITY DEFINER RPC (migration 010) and is rate-limited in `proxy.ts` via `lib/rate-limit/shared-trip.ts` (sliding 30 req / 5 min per IP, Upstash Redis backend, SPEC-009b.1). Requires `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` env vars; falls back to no-op + warn-once if missing. Every page render writes to `share_audit_log` via the `log_share_access` RPC (migration 020, SPEC-009b.2) with the first 8 hex chars of `sha256(token)` plus IP / UA / status — failures are swallowed so audit logging cannot break the user-facing page. 90-day retention via `purge_old_share_audit_log()`; schedule the sweep separately (pg_cron / Supabase scheduled function).
 
 ## Specs & IDD workflow
 
