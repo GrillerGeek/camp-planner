@@ -6,6 +6,7 @@ import {
   useRealtimeContext,
   type PresenceProfile,
 } from "@/lib/realtime/RealtimeProvider";
+import { VisibilityRefresher } from "@/lib/realtime/VisibilityRefresher";
 import { PresenceAvatars } from "./PresenceAvatars";
 
 interface TripRealtimeShellProps {
@@ -35,6 +36,7 @@ export function TripRealtimeShell({
 }: TripRealtimeShellProps) {
   return (
     <RealtimeProvider tripId={tripId} profile={profile}>
+      <VisibilityRefresher />
       <ConnectivityBanner />
       {profile && (
         <div className="flex justify-end mb-3">

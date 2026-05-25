@@ -3,7 +3,8 @@ spec:
   name: "Realtime hardening: cross-trip presence authz + tab-refocus re-sync"
   product: "PROD-001"
   parent: "SPEC-003"
-  status: "backlog"
+  status: "shipped"
+  shipped_on: "2026-05-25"
   owner: "Jason Robey"
   created: "2026-05-15"
 
@@ -75,6 +76,8 @@ spec:
 
     - id: "SPEC-003b.2"
       summary: "Tab-refocus re-sync logic"
+      status: "shipped"
+      shipped_on: "2026-05-25"
       problem: >
         useConnectionRecovery existed in SPEC-003 but was wired only into an
         orphaned TripDetailClient.tsx and was deleted during the retro fix.
@@ -88,6 +91,40 @@ spec:
         visibilitychange and re-running the loader. Re-scope before building.
       priority: "low"
       reason: "Quality-of-life — not user-blocking, no security implications."
+      implementation: >
+        Re-scope outcome (per the approach_hint's "Re-scope before
+        building"): the suggested useRealtimeTrip path was wrong.
+        Investigation revealed BOTH useRealtimeTrip.ts AND
+        useRealtimeSubscription.ts had zero external consumers — dead
+        code carrying forward from the SPEC-003 retro. CLAUDE.md even
+        documented useRealtimeSubscription as a usage pattern, but
+        every feature client uses ad-hoc supabase.channel(...) directly
+        (PackingListClient, GroceryListClient, TaskListClient).
+
+        Two-part fix:
+
+        1. Deleted both dead hooks (lib/realtime/useRealtimeTrip.ts,
+           lib/realtime/useRealtimeSubscription.ts) and removed the
+           stale CLAUDE.md reference. Building atop them would have
+           compounded zombie complexity.
+
+        2. New lib/realtime/VisibilityRefresher.tsx: tiny client
+           component that listens for document visibilitychange events.
+           Stamps Date.now() into a ref on hidden; on visible, computes
+           the hidden duration and calls router.refresh() if it crossed
+           STALE_THRESHOLD_MS (30 s). router.refresh() re-runs the
+           Server-Component fetch tree without losing client state —
+           exactly the right tool for "the trip row may have drifted."
+           Mounted once in TripRealtimeShell so every trip subpage
+           benefits.
+
+        Why a threshold and not refresh-on-every-visibility-flip:
+        short hides (alt-tab to glance at a notification) don't risk
+        meaningful drift, and per-feature channels (presence, packing,
+        grocery, tasks) re-sync via their own reconnect path on tab
+        wake. Only data without a channel (trip row, member roster)
+        needs the explicit refresh; the threshold matches the spec's
+        "long backgrounding (>30s)" framing.
 
   deliverables:
     - "Migration adding RLS policy on realtime.messages scoped by topic UUID"
