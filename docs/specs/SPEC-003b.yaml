@@ -22,6 +22,8 @@ spec:
   scope:
     - id: "SPEC-003b.1"
       summary: "Supabase Realtime channel authorization for presence channels"
+      status: "shipped"
+      shipped_on: "2026-05-25"
       problem: >
         Today, any authenticated user who guesses or learns a trip UUID can
         subscribe to its presence:{tripId} channel and observe who is viewing
@@ -34,6 +36,42 @@ spec:
         the topic, requiring is_trip_member_of(topic_to_uuid(topic)).
       priority: "high"
       reason: "Security — quietly leaks viewing activity between trips."
+      implementation: >
+        Migration 022 adds SELECT and INSERT policies on realtime.messages
+        scoped to the presence extension and presence:{uuid} topic shape.
+        Uses realtime.topic() (the canonical Supabase helper) to read the
+        active channel topic rather than parsing the messages.topic column
+        directly. A UUID regex check guards the ::uuid cast so a malformed
+        topic produces a clean policy-deny rather than a SQL exception
+        leaking to the client. Membership check delegates to the existing
+        public.is_trip_member_of helper (migration 002, SECURITY DEFINER,
+        search_path locked) — avoids recursive RLS on trip_members.
+
+        RealtimeProvider:
+        - Channel is opened with config: { private: true }. Without this,
+          the policies have no effect — public channels skip
+          realtime.messages RLS entirely.
+        - Awaits supabase.realtime.setAuth() before every (re)subscribe
+          attempt. This applies the current JWT to the realtime client so
+          the server has an identity to authorize against. Done inside the
+          connect() function so retries after token refresh use the fresh
+          token automatically.
+        - setAuth() errors (expired session, etc.) are caught and ignored;
+          the subscribe attempt will fail with CHANNEL_ERROR and the
+          existing exponential-backoff retry handles recovery.
+
+        Per-feature channels (packing-{listId}, grocery-{listId}, tasks
+        filtered by tripId) intentionally stay PUBLIC — they ride
+        postgres_changes which is already authorized by table-level RLS,
+        and they don't broadcast user-identifying info that needs
+        membership-gating. If we ever lock those down too, follow the
+        same pattern: mark private client-side AND add a matching
+        topic-scoped policy on realtime.messages.
+
+        Validation (per spec): the human_review and automated checks
+        require a non-member account to attempt a raw-client subscribe
+        against another trip's presence:{uuid} topic — they should see
+        CHANNEL_ERROR with no presence state ever delivered.
 
     - id: "SPEC-003b.2"
       summary: "Tab-refocus re-sync logic"

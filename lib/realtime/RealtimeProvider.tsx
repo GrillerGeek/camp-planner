@@ -107,11 +107,29 @@ export function RealtimeProvider({
       setPresentUsers(users);
     };
 
-    const connect = () => {
+    const connect = async () => {
       if (cancelled) return;
       setConnectionStatus("connecting");
 
-      const ch = supabase.channel(channelName);
+      // SPEC-003b.1: presence channels are private — RLS on
+      // realtime.messages gates subscribe + send to trip members. We
+      // must call setAuth so the realtime server has the current JWT
+      // before subscribe; otherwise the server has no identity to
+      // authorize against and the join silently fails. Call it on
+      // every (re)connect so token refreshes are picked up by retries.
+      try {
+        await supabase.realtime.setAuth();
+      } catch {
+        // setAuth can throw on missing/expired session. Fall through —
+        // the subscribe attempt will fail with CHANNEL_ERROR and the
+        // existing retry/backoff loop handles the recovery.
+      }
+
+      if (cancelled) return;
+
+      const ch = supabase.channel(channelName, {
+        config: { private: true },
+      });
       currentChannel = ch;
 
       // Presence callbacks MUST be attached before subscribe() — Supabase
