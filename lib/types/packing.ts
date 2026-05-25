@@ -39,6 +39,11 @@ export interface TripPackingItem {
   quantity: number;
   is_essential: boolean;
   is_packed: boolean;
+  /** Audit columns auto-stamped by migration 024's trigger when
+   *  is_packed flips. Server-side enforcement — client writes to these
+   *  are silently discarded. */
+  packed_at: string | null;
+  packed_by: string | null;
   assignees: string[];
   notes: string | null;
   sort_order: number;

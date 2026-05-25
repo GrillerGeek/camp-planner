@@ -433,6 +433,7 @@ export function PackingListClient({
                   {categoryItems.map((item) => (
                     <div
                       key={item.id}
+                      title={formatPackedTooltip(item, members)}
                       className={`flex items-center gap-3 bg-white/5 rounded-lg px-3 py-2.5 group transition-colors ${
                         item.is_packed ? "opacity-60" : ""
                       }`}
@@ -711,4 +712,26 @@ export function PackingListClient({
       )}
     </div>
   );
+}
+
+/**
+ * SPEC-004b.3 — tooltip showing who packed this item and when.
+ * Returns undefined when the item isn't packed (so the title attribute
+ * is omitted entirely rather than rendering an empty tooltip).
+ */
+function formatPackedTooltip(
+  item: { is_packed: boolean; packed_at: string | null; packed_by: string | null },
+  members: { user_id: string; display_name: string }[]
+): string | undefined {
+  if (!item.is_packed || !item.packed_at) return undefined;
+  const packer =
+    members.find((m) => m.user_id === item.packed_by)?.display_name ??
+    (item.packed_by ? "a trip member" : null);
+  const when = new Date(item.packed_at).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return packer ? `Packed by ${packer} · ${when}` : `Packed · ${when}`;
 }

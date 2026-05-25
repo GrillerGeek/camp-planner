@@ -3,7 +3,8 @@ spec:
   name: "Packing list follow-ups: multi-assignee, trip_type matching, audit columns"
   product: "PROD-001"
   parent: "SPEC-004"
-  status: "backlog"
+  status: "shipped"
+  shipped_on: "2026-05-25"
   owner: "Jason Robey"
   created: "2026-05-15"
 
@@ -107,6 +108,8 @@ spec:
 
     - id: "SPEC-004b.3"
       summary: "checked_by + checked_at audit columns"
+      status: "shipped"
+      shipped_on: "2026-05-25"
       problem: >
         Today only checked: boolean is stored. No way to show "Angie checked
         this off 5 min ago" in the UI or in trip history.
@@ -114,6 +117,49 @@ spec:
         Migration: add checked_by uuid (fk profiles) + checked_at timestamptz.
         Populate from the check-off mutation. Render in tooltip or sidebar.
       priority: "low"
+      implementation: >
+        Naming aligns with the existing trip_tasks convention (migration
+        004): `packed_at` + `packed_by` rather than the spec's
+        `checked_at`/`checked_by`, because the column being audited is
+        `is_packed`, not `checked`. Same verb_at / verb_by pattern.
+
+        Migration 024:
+        - trip_packing_items.packed_at timestamptz, packed_by uuid fk
+          profiles (on delete set null).
+        - stamp_packing_item_packed_audit() BEFORE INSERT OR UPDATE
+          trigger, SECURITY DEFINER with locked search_path. Forces
+          packed_at = now() + packed_by = auth.uid() whenever
+          is_packed flips false→true; clears both on true→false;
+          ignores any client-supplied audit values when is_packed
+          itself is unchanged. Server-side stamping closes the
+          tampering vector where a viewer with direct Supabase client
+          access could set packed_by to anyone's uuid.
+
+        lib/types/packing.ts: TripPackingItem gains packed_at and
+        packed_by as nullable fields.
+
+        lib/queries/packing.ts: no change. togglePacked / updatePackingItem
+        keep sending only is_packed (and other fields) — the trigger
+        handles the audit columns. This is intentionally different
+        from the trip_tasks pattern (which stamps in the app layer)
+        because server-stamping is more defensible against direct-client
+        tampering and removes any chance of clock-skew between client
+        and server timestamps.
+
+        PackingListClient: each item row's wrapper div now carries a
+        title attribute computed by formatPackedTooltip(item, members).
+        For packed items it renders "Packed by Angie · May 25, 3:42 PM";
+        for unpacked items the title is omitted entirely so there's no
+        empty tooltip. Unknown-user fallbacks ("a trip member" when
+        packed_by points to a removed profile) and stamp-only fallbacks
+        ("Packed · ...") cover the edge cases.
+
+        Why tooltip vs. always-visible footer: keeps the row visually
+        clean. The audit data is "nice to know" not "must see" — the
+        team almost never needs to know exactly when a tent went in.
+        Discoverable via hover (desktop) and long-press (mobile via
+        title-attribute fallback in modern browsers); doesn't add visual
+        weight to every packed row.
 
   validation:
     human_review:
