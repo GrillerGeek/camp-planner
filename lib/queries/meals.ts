@@ -79,6 +79,86 @@ export async function getRecipes(
   return data ?? [];
 }
 
+/**
+ * Paginated recipe query for SPEC-005b.4. Returns the current page of
+ * recipes plus a total count so the caller can render pagination
+ * controls. Filters compose: search is ilike on name, tags is an array
+ * containment ("any of these tags").
+ */
+export async function getRecipesPage(
+  supabase: SupabaseClient,
+  args: {
+    search?: string;
+    tags?: string[];
+    page?: number;
+    pageSize?: number;
+  } = {}
+): Promise<{ recipes: Recipe[]; total: number }> {
+  const page = Math.max(1, args.page ?? 1);
+  const pageSize = Math.max(1, Math.min(100, args.pageSize ?? 24));
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from("recipes")
+    .select("*", { count: "exact" })
+    .order("updated_at", { ascending: false })
+    .range(from, to);
+
+  const search = args.search?.trim();
+  if (search) {
+    // % escapes — ilike treats _ and % as wildcards; users typing them
+    // verbatim would otherwise hit unintended matches.
+    const escaped = search.replace(/[%_]/g, "\\$&");
+    query = query.ilike("name", `%${escaped}%`);
+  }
+
+  if (args.tags && args.tags.length > 0) {
+    // text[] && text[] — true if the arrays overlap (any tag matches).
+    query = query.overlaps("tags", args.tags);
+  }
+
+  const { data, error, count } = await query;
+  if (error) throw error;
+  return { recipes: data ?? [], total: count ?? 0 };
+}
+
+/**
+ * SPEC-005b.5 — checks whether the current user already owns a recipe
+ * with the same case-insensitive name. Returns the conflicting recipe
+ * id+name when one exists, or null. Excludes the recipe being edited
+ * so renaming or saving an unchanged name doesn't false-positive.
+ */
+export async function getRecipeNameConflict(
+  supabase: SupabaseClient,
+  args: { name: string; excludeRecipeId?: string }
+): Promise<{ id: string; name: string } | null> {
+  const trimmed = args.name.trim();
+  if (!trimmed) return null;
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  // Postgres ilike with no wildcards is a case-insensitive equality.
+  const escaped = trimmed.replace(/[%_]/g, "\\$&");
+  let query = supabase
+    .from("recipes")
+    .select("id, name")
+    .eq("created_by", user.id)
+    .ilike("name", escaped)
+    .limit(1);
+
+  if (args.excludeRecipeId) {
+    query = query.neq("id", args.excludeRecipeId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data?.[0] ?? null;
+}
+
 export async function getRecipeById(
   supabase: SupabaseClient,
   recipeId: string

@@ -3,7 +3,8 @@ spec:
   name: "Meal planning follow-ups: AI suggestions, recipe snapshots, library UX"
   product: "PROD-001"
   parent: "SPEC-005"
-  status: "backlog"
+  status: "shipped"
+  shipped_on: "2026-05-25"
   owner: "Jason Robey"
   created: "2026-05-15"
 
@@ -117,6 +118,8 @@ spec:
 
     - id: "SPEC-005b.4"
       summary: "Recipe library search + filter + pagination"
+      status: "shipped"
+      shipped_on: "2026-05-25"
       problem: >
         The recipe library has no search, no tag filter, and no pagination.
         Will become unusable past ~50 recipes.
@@ -124,9 +127,38 @@ spec:
         Server-side query with ilike(name) + tag overlap + range(). Tag
         chip-filter UI on top of the existing grid.
       priority: "low"
+      implementation: >
+        New getRecipesPage(supabase, { search, tags, page, pageSize })
+        in lib/queries/meals.ts. Uses .select("*", { count: "exact" })
+        so the response carries the total count for pagination, .ilike
+        on name (with %/_ escaping so verbatim wildcards don't sneak
+        through), .overlaps on tags (text[] && text[] for "any of these
+        tags"), and .range() for the page window. Default page size 24
+        (3x3 desktop / 12x2 mobile), capped at 100.
+
+        app/dashboard/recipes/page.tsx is now a Server Component that
+        reads searchParams (q, tag, page), passes them to
+        getRecipesPage, and renders the grid + pagination. URL-driven
+        state means filters survive reloads and are shareable.
+
+        New client components:
+        - RecipesFilters: search input (debounced 250ms before URL
+          write) + tag chip toggles. Tags clicked write to URL
+          immediately for snappy feedback; search debounces to avoid a
+          fetch per keystroke. Tag list validated server-side against
+          RECIPE_TAGS so a hand-crafted URL can't pass an arbitrary
+          string into the query.
+        - RecipesPagination: Prev/Next with page indicator, preserves
+          existing q + tag URL params.
+
+        Empty states distinguished: "No recipes yet" (truly empty
+        library) vs. "No recipes match these filters" (active filters,
+        zero matches).
 
     - id: "SPEC-005b.5"
       summary: "Duplicate recipe name warning"
+      status: "shipped"
+      shipped_on: "2026-05-25"
       problem: >
         Two recipes can share the same name with no warning.
       approach_hint: >
@@ -134,6 +166,25 @@ spec:
         toast on save. The library is shared (RLS using true) so cross-user
         dup names are fine — only warn within a single owner.
       priority: "low"
+      implementation: >
+        Chose the soft warning over a hard unique index — gives the user
+        the choice to keep both (e.g., "Chili" and "Chili" with different
+        ingredients is sometimes intentional) and keeps the migration
+        surface clean. If duplicate-rate ever justifies it, a partial
+        unique index on (created_by, lower(name)) can be added without
+        breaking existing rows.
+
+        New getRecipeNameConflict(supabase, { name, excludeRecipeId })
+        helper in lib/queries/meals.ts: case-insensitive equality via
+        .ilike(escaped) — no wildcards in the escaped pattern, so ilike
+        behaves as lower(name) = lower(input). Scoped to the current
+        user's created_by. Returns { id, name } of the conflict or null.
+
+        RecipeForm calls the helper on submit; if a conflict is found,
+        window.confirm prompts "You already have a recipe named 'X'.
+        Save this one anyway?" — Cancel returns to the form without
+        clearing fields. Excludes the editing recipe id so saving an
+        unchanged name on an edit doesn't false-positive.
 
   validation:
     human_review:

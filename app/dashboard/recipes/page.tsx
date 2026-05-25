@@ -1,10 +1,37 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getRecipes } from "@/lib/queries/meals";
+import { getRecipesPage } from "@/lib/queries/meals";
+import { RECIPE_TAGS } from "@/lib/types/meals";
+import { RecipesFilters } from "./components/RecipesFilters";
+import { RecipesPagination } from "./components/RecipesPagination";
 
-export default async function RecipesPage() {
+const PAGE_SIZE = 24;
+
+export default async function RecipesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    q?: string;
+    tag?: string | string[];
+    page?: string;
+  }>;
+}) {
+  const params = await searchParams;
+  const q = params.q?.trim() ?? "";
+  const tags = normalizeTags(params.tag);
+  const page = parseInt(params.page ?? "1", 10) || 1;
+
   const supabase = await createClient();
-  const recipes = await getRecipes(supabase);
+  const { recipes, total } = await getRecipesPage(supabase, {
+    search: q,
+    tags,
+    page,
+    pageSize: PAGE_SIZE,
+  });
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const hasFilters = q !== "" || tags.length > 0;
+  const isEmptyLibrary = !hasFilters && total === 0 && page === 1;
 
   return (
     <div>
@@ -12,7 +39,8 @@ export default async function RecipesPage() {
         <div>
           <h1 className="text-2xl font-bold text-white mb-1">Recipe Library</h1>
           <p className="text-camp-earth text-sm">
-            {recipes.length} {recipes.length === 1 ? "recipe" : "recipes"} saved
+            {total} {total === 1 ? "recipe" : "recipes"}
+            {hasFilters && total > 0 ? " match" : " saved"}
           </p>
         </div>
         <Link
@@ -36,7 +64,15 @@ export default async function RecipesPage() {
         </Link>
       </div>
 
-      {recipes.length === 0 ? (
+      {!isEmptyLibrary && (
+        <RecipesFilters
+          initialQuery={q}
+          initialTags={tags}
+          availableTags={[...RECIPE_TAGS]}
+        />
+      )}
+
+      {isEmptyLibrary ? (
         <div className="text-center py-16 bg-white/5 border border-white/10 rounded-xl">
           <div className="text-5xl mb-4">📖</div>
           <h2 className="text-xl font-semibold text-white mb-2">
@@ -52,52 +88,78 @@ export default async function RecipesPage() {
             Create your first recipe
           </Link>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {recipes.map((recipe) => (
-            <Link
-              key={recipe.id}
-              href={`/dashboard/recipes/${recipe.id}/edit`}
-              className="bg-white/5 border border-white/10 rounded-xl p-5 hover:border-white/20 transition-colors block"
-            >
-              <h3 className="text-white font-medium mb-1 truncate">
-                {recipe.name}
-              </h3>
-              {recipe.description && (
-                <p className="text-camp-earth text-sm mb-3 line-clamp-2">
-                  {recipe.description}
-                </p>
-              )}
-              <div className="flex items-center gap-3 text-camp-earth/60 text-xs">
-                {recipe.servings && (
-                  <span>
-                    {recipe.servings}{" "}
-                    {recipe.servings === 1 ? "serving" : "servings"}
-                  </span>
-                )}
-                {recipe.prep_time_minutes && (
-                  <span>{recipe.prep_time_minutes}m prep</span>
-                )}
-                {recipe.cook_time_minutes && (
-                  <span>{recipe.cook_time_minutes}m cook</span>
-                )}
-              </div>
-              {recipe.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-3">
-                  {recipe.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="px-2 py-0.5 rounded-full text-xs bg-camp-forest/20 text-camp-forest"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </Link>
-          ))}
+      ) : recipes.length === 0 ? (
+        <div className="text-center py-12 bg-white/5 border border-white/10 rounded-xl">
+          <div className="text-4xl mb-3">🔍</div>
+          <h2 className="text-lg font-semibold text-white mb-1">
+            No recipes match these filters
+          </h2>
+          <p className="text-camp-earth text-sm">
+            Try a different search term or clear the tag filter.
+          </p>
         </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {recipes.map((recipe) => (
+              <Link
+                key={recipe.id}
+                href={`/dashboard/recipes/${recipe.id}/edit`}
+                className="bg-white/5 border border-white/10 rounded-xl p-5 hover:border-white/20 transition-colors block"
+              >
+                <h3 className="text-white font-medium mb-1 truncate">
+                  {recipe.name}
+                </h3>
+                {recipe.description && (
+                  <p className="text-camp-earth text-sm mb-3 line-clamp-2">
+                    {recipe.description}
+                  </p>
+                )}
+                <div className="flex items-center gap-3 text-camp-earth/60 text-xs">
+                  {recipe.servings && (
+                    <span>
+                      {recipe.servings}{" "}
+                      {recipe.servings === 1 ? "serving" : "servings"}
+                    </span>
+                  )}
+                  {recipe.prep_time_minutes && (
+                    <span>{recipe.prep_time_minutes}m prep</span>
+                  )}
+                  {recipe.cook_time_minutes && (
+                    <span>{recipe.cook_time_minutes}m cook</span>
+                  )}
+                </div>
+                {recipe.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {recipe.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="px-2 py-0.5 rounded-full text-xs bg-camp-forest/20 text-camp-forest"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </Link>
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <RecipesPagination currentPage={page} totalPages={totalPages} />
+          )}
+        </>
       )}
     </div>
+  );
+}
+
+function normalizeTags(value: string | string[] | undefined): string[] {
+  if (!value) return [];
+  const list = Array.isArray(value) ? value : [value];
+  // Only allow known tags so a hand-crafted URL can't pass an arbitrary
+  // string through to the ilike/overlaps query.
+  return list.filter((t): t is (typeof RECIPE_TAGS)[number] =>
+    (RECIPE_TAGS as readonly string[]).includes(t)
   );
 }

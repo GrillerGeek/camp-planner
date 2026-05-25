@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { createRecipe, updateRecipe } from "@/lib/queries/meals";
+import {
+  createRecipe,
+  getRecipeNameConflict,
+  updateRecipe,
+} from "@/lib/queries/meals";
 import { Recipe, RecipeFormData, Ingredient, RECIPE_TAGS } from "@/lib/types/meals";
 
 interface RecipeFormProps {
@@ -85,6 +89,24 @@ export function RecipeForm({ recipe }: RecipeFormProps) {
     setSaving(true);
     try {
       const supabase = createClient();
+
+      // SPEC-005b.5: warn if this user already has a recipe with the
+      // same name (case-insensitive). Excludes the recipe being edited
+      // so saving an unchanged name doesn't false-positive.
+      const conflict = await getRecipeNameConflict(supabase, {
+        name: formData.name,
+        excludeRecipeId: recipe?.id,
+      });
+      if (conflict) {
+        const proceed = window.confirm(
+          `You already have a recipe named "${conflict.name}". Save this one anyway?`
+        );
+        if (!proceed) {
+          setSaving(false);
+          return;
+        }
+      }
+
       const payload = {
         name: formData.name,
         description: formData.description,
