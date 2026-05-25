@@ -53,6 +53,7 @@ export async function createTrip(
       end_date: formData.end_date,
       campsite_info: formData.campsite_info.trim() || null,
       notes: formData.notes.trim() || null,
+      trip_type: formData.trip_type || null,
       created_by: user.id,
     })
     .select()
@@ -87,6 +88,8 @@ export async function updateTrip(
     updateData.campsite_info = formData.campsite_info.trim() || null;
   if (formData.notes !== undefined)
     updateData.notes = formData.notes.trim() || null;
+  if (formData.trip_type !== undefined)
+    updateData.trip_type = formData.trip_type || null;
 
   const { data, error } = await supabase
     .from("trips")

@@ -47,6 +47,8 @@ spec:
 
     - id: "SPEC-004b.2"
       summary: "trip_type matching in findMatchingTemplates"
+      status: "shipped"
+      shipped_on: "2026-05-25"
       problem: >
         findMatchingTemplates today matches on season + duration but ignores
         trip_type. INT-002 specifically calls out trip-type-aware templates
@@ -55,6 +57,53 @@ spec:
         Extend the template metadata to carry trip_type, add the filter to
         findMatchingTemplates, and surface trip_type in the templates editor.
       priority: "medium"
+      implementation: >
+        Note: findMatchingTemplates was removed during the SPEC-002c
+        refactor (auto-apply replaced by an always-on Apply Template
+        modal listing every template). The remaining gap was deeper —
+        packing_templates carried a trip_types text[] column (migration
+        002) but trips themselves had no trip_type to match against.
+        INT-002's promise of trip-type-aware templates was therefore
+        fictional. This fix closes that by adding the column on trips
+        and using it to rank templates in the apply modal.
+
+        Migration 023:
+        - trips.trip_type text nullable, CHECK constraint matching the
+          TRIP_TYPES TS enum (tent / rv / cabin / backpacking).
+        - Nullable on purpose: existing trips can't be backfilled
+          truthfully ('tent' would be a guess, not knowledge), and some
+          trips legitimately start undecided. Null reads as "no signal,
+          fall back to season-only matching" in the apply modal.
+
+        lib/types/trip.ts: Trip.trip_type and TripFormData.trip_type
+        (with "" representing unset in the form, written as null to DB).
+
+        lib/queries/trips.ts: createTrip and updateTrip both wire
+        trip_type through, converting empty string to null at the DB
+        boundary.
+
+        TripForm: new chip selector between Campsite Info and Notes
+        with all four TRIP_TYPES values. Clicking the active chip
+        clears the selection (back to ""). Helper text under the label
+        explains the value prop ("Helps surface matching packing
+        templates when you apply one.").
+
+        PackingListClient: templates are now sorted in the apply modal
+        by a three-tier score:
+        - 2 (Recommended): matches BOTH season AND trip_type
+        - 1 (Match): matches one of the two
+        - 0 (Other): matches neither
+        Within the same tier, original updated_at-desc order is
+        preserved. "Recommended" templates get a small badge next to
+        the name and a camp-forest border accent. Matching trip_type
+        chips get the high-intensity color (camp-fire/30) while
+        non-matching ones stay muted (camp-fire/10) — same visual
+        rhythm as the season chips' camp-sky treatment.
+
+        For trips with trip_type=null (existing trips or "not sure"
+        ones), the trip_type criterion always fails, so the ranking
+        collapses to season-only — i.e., identical UX to the
+        pre-migration behavior. No regression for unset trips.
 
     - id: "SPEC-004b.3"
       summary: "checked_by + checked_at audit columns"

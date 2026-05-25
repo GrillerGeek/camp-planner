@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { createTrip, updateTrip } from "@/lib/queries/trips";
 import { Trip, TripFormData } from "@/lib/types/trip";
+import { TRIP_TYPES } from "@/lib/types/packing";
 
 interface TripFormProps {
   mode: "create" | "edit";
@@ -23,6 +24,7 @@ export function TripForm({ mode, initialData }: TripFormProps) {
     end_date: initialData?.end_date ?? "",
     campsite_info: initialData?.campsite_info ?? "",
     notes: initialData?.notes ?? "",
+    trip_type: initialData?.trip_type ?? "",
   });
 
   function validate(): boolean {
@@ -161,6 +163,39 @@ export function TripForm({ mode, initialData }: TripFormProps) {
             rows={2}
             className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-camp-earth/50 focus:outline-none focus:ring-2 focus:ring-camp-forest focus:border-transparent resize-none"
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-white mb-1.5">
+            Trip Type
+          </label>
+          <p className="text-camp-earth/60 text-xs mb-2">
+            Helps surface matching packing templates when you apply one.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {TRIP_TYPES.map((type) => {
+              const active = form.trip_type === type;
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() =>
+                    setForm((prev) => ({
+                      ...prev,
+                      trip_type: active ? "" : type,
+                    }))
+                  }
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium capitalize transition-colors ${
+                    active
+                      ? "bg-camp-forest text-white"
+                      : "bg-white/5 text-camp-earth/70 hover:bg-white/10 hover:text-camp-earth"
+                  }`}
+                >
+                  {type}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div>

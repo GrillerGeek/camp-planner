@@ -7,6 +7,9 @@ export interface Trip {
   campsite_info: string | null;
   notes: string | null;
   status: "planning" | "active" | "completed";
+  /** Mirrors TRIP_TYPES values; null = unspecified. Used by the
+   *  packing-template apply modal to surface matching templates. */
+  trip_type: "tent" | "rv" | "cabin" | "backpacking" | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -31,4 +34,6 @@ export interface TripFormData {
   end_date: string;
   campsite_info: string;
   notes: string;
+  /** Empty string means "not set" — written to DB as null. */
+  trip_type: "" | "tent" | "rv" | "cabin" | "backpacking";
 }

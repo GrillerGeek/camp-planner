@@ -144,6 +144,24 @@ export function PackingListClient({
     return Array.from(new Set([s(trip.start_date), s(trip.end_date)]));
   })();
 
+  // SPEC-004b.2: rank templates so recommended ones surface first.
+  // - "Recommended": matches BOTH the trip's season AND its trip_type
+  // - "Match": matches one of the two
+  // - "Other": matches neither
+  // Within the same tier, preserve the load order (template.updated_at
+  // desc) — getPackingTemplates already sorts that way.
+  const sortedTemplates = templates
+    .map((template) => {
+      const seasonMatch = template.seasons.some((s) => tripSeasons.includes(s));
+      const typeMatch =
+        trip.trip_type !== null &&
+        template.trip_types.includes(trip.trip_type);
+      const isRecommended = seasonMatch && typeMatch;
+      const score = isRecommended ? 2 : seasonMatch || typeMatch ? 1 : 0;
+      return { template, seasonMatch, typeMatch, isRecommended, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
   // Add new item
   async function handleAddItem(e: React.FormEvent) {
     e.preventDefault();
@@ -616,64 +634,76 @@ export function PackingListClient({
               </div>
             ) : (
               <div className="space-y-2">
-                {templates.map((template) => {
-                  const seasonMatch = template.seasons.some((s) =>
-                    tripSeasons.includes(s)
-                  );
-                  const isApplying = applyingTemplateId === template.id;
-                  return (
-                    <button
-                      key={template.id}
-                      onClick={() => handleApplyTemplate(template.id)}
-                      disabled={!!applyingTemplateId}
-                      className={`w-full text-left bg-white/5 border rounded-lg p-3 hover:border-white/20 transition-colors disabled:opacity-50 ${
-                        seasonMatch
-                          ? "border-camp-sky/40"
-                          : "border-white/10"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <span className="text-white font-medium text-sm">
-                          {template.name}
-                        </span>
-                        <span className="text-camp-earth/70 text-xs shrink-0">
-                          {isApplying
-                            ? "Applying..."
-                            : `${template.item_count} item${
-                                template.item_count !== 1 ? "s" : ""
+                {sortedTemplates.map(
+                  ({ template, seasonMatch, typeMatch, isRecommended }) => {
+                    const isApplying = applyingTemplateId === template.id;
+                    return (
+                      <button
+                        key={template.id}
+                        onClick={() => handleApplyTemplate(template.id)}
+                        disabled={!!applyingTemplateId}
+                        className={`w-full text-left bg-white/5 border rounded-lg p-3 hover:border-white/20 transition-colors disabled:opacity-50 ${
+                          isRecommended
+                            ? "border-camp-forest/50"
+                            : seasonMatch || typeMatch
+                              ? "border-camp-sky/40"
+                              : "border-white/10"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-white font-medium text-sm truncate">
+                              {template.name}
+                            </span>
+                            {isRecommended && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-camp-forest/30 text-camp-forest font-medium shrink-0">
+                                Recommended
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-camp-earth/70 text-xs shrink-0">
+                            {isApplying
+                              ? "Applying..."
+                              : `${template.item_count} item${
+                                  template.item_count !== 1 ? "s" : ""
+                                }`}
+                          </span>
+                        </div>
+                        {template.description && (
+                          <p className="text-camp-earth/60 text-xs mb-2 line-clamp-2">
+                            {template.description}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap gap-1">
+                          {template.seasons.map((s) => (
+                            <span
+                              key={s}
+                              className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                                tripSeasons.includes(s)
+                                  ? "bg-camp-sky/30 text-camp-sky"
+                                  : "bg-white/10 text-camp-earth/70"
                               }`}
-                        </span>
-                      </div>
-                      {template.description && (
-                        <p className="text-camp-earth/60 text-xs mb-2 line-clamp-2">
-                          {template.description}
-                        </p>
-                      )}
-                      <div className="flex flex-wrap gap-1">
-                        {template.seasons.map((s) => (
-                          <span
-                            key={s}
-                            className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                              tripSeasons.includes(s)
-                                ? "bg-camp-sky/30 text-camp-sky"
-                                : "bg-white/10 text-camp-earth/70"
-                            }`}
-                          >
-                            {s}
-                          </span>
-                        ))}
-                        {template.trip_types.map((t) => (
-                          <span
-                            key={t}
-                            className="text-[10px] px-1.5 py-0.5 rounded-full bg-camp-fire/15 text-camp-fire/80"
-                          >
-                            {t}
-                          </span>
-                        ))}
-                      </div>
-                    </button>
-                  );
-                })}
+                            >
+                              {s}
+                            </span>
+                          ))}
+                          {template.trip_types.map((t) => (
+                            <span
+                              key={t}
+                              className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                                trip.trip_type && t === trip.trip_type
+                                  ? "bg-camp-fire/30 text-camp-fire"
+                                  : "bg-camp-fire/10 text-camp-fire/70"
+                              }`}
+                            >
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      </button>
+                    );
+                  }
+                )}
               </div>
             )}
           </div>
