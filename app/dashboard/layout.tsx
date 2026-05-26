@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { SignOutButton } from "./sign-out-button";
+import { OfflineProvider } from "@/app/pwa/OfflineContext";
 
 export default async function DashboardLayout({
   children,
@@ -18,6 +19,7 @@ export default async function DashboardLayout({
   }
 
   return (
+    <OfflineProvider>
     <div className="min-h-screen bg-camp-night">
       <header className="border-b border-white/10 bg-camp-night/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
@@ -66,5 +68,6 @@ export default async function DashboardLayout({
       </header>
       <main className="max-w-6xl mx-auto px-4 py-6">{children}</main>
     </div>
+    </OfflineProvider>
   );
 }
