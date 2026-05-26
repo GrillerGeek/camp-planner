@@ -164,6 +164,7 @@ export function TaskListClient({
 
   // Toggle completion
   async function handleToggleComplete(taskId: string, currentCompleted: boolean) {
+    if (isOffline) return;
     setTasks((prev) =>
       prev.map((t) =>
         t.id === taskId
@@ -216,8 +217,16 @@ export function TaskListClient({
 
       setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
       setEditingTaskId(null);
-    } catch {
-      // ignore
+    } catch (err) {
+      if (!navigator.onLine) {
+        setError(
+          "You're offline — your changes weren't saved. Try again when you're back online."
+        );
+      } else {
+        setError(
+          err instanceof Error ? err.message : "Failed to save task."
+        );
+      }
     }
   }
 

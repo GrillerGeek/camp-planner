@@ -202,6 +202,7 @@ export function PackingListClient({
 
   // Toggle packed status
   async function handleTogglePacked(itemId: string, currentPacked: boolean) {
+    if (isOffline) return;
     // Optimistic update
     setItems((prev) =>
       prev.map((i) =>
@@ -223,6 +224,7 @@ export function PackingListClient({
 
   // Delete item
   async function handleDeleteItem(itemId: string) {
+    if (isOffline) return;
     const prev = items;
     setItems((items) => items.filter((i) => i.id !== itemId));
     try {
@@ -234,6 +236,7 @@ export function PackingListClient({
 
   // Toggle a single assignee on/off for an item. Optimistic with revert.
   async function handleToggleAssignee(itemId: string, userId: string) {
+    if (isOffline) return;
     const prev = items;
     setItems((current) =>
       current.map((i) => {

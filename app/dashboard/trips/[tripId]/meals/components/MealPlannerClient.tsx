@@ -115,6 +115,7 @@ export function MealPlannerClient({
   }
 
   async function handleAddMeal(recipe?: Recipe) {
+    if (isOffline) return;
     if (!activeSlot || !isPlanner) return;
 
     const name = recipe ? null : customMealName.trim();
@@ -147,6 +148,7 @@ export function MealPlannerClient({
   }
 
   async function handleRemoveMeal(mealId: string) {
+    if (isOffline) return;
     if (!isPlanner) return;
 
     try {
@@ -163,6 +165,7 @@ export function MealPlannerClient({
     newDayDate: string,
     newMealType: MealType
   ) {
+    if (isOffline) return;
     if (!isPlanner) return;
 
     try {
@@ -487,7 +490,7 @@ export function MealPlannerClient({
                     {slotMeals.map((meal) => (
                       <div
                         key={meal.id}
-                        draggable={isPlanner}
+                        draggable={isPlanner && !isOffline}
                         onDragStart={(e) => handleDragStart(e, meal.id)}
                         onClick={() => setEditingMeal(meal)}
                         className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-2 mb-2 group cursor-pointer transition-colors"

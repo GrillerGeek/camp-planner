@@ -177,6 +177,7 @@ export function GroceryListClient({
     itemId: string,
     currentPurchased: boolean
   ) {
+    if (isOffline) return;
     setItems((prev) =>
       prev.map((i) =>
         i.id === itemId ? { ...i, is_purchased: !currentPurchased } : i
@@ -195,6 +196,7 @@ export function GroceryListClient({
 
   // Delete item
   async function handleDeleteItem(itemId: string) {
+    if (isOffline) return;
     const prev = items;
     setItems((items) => items.filter((i) => i.id !== itemId));
     try {
@@ -275,6 +277,7 @@ export function GroceryListClient({
   }
 
   async function handleApplyReconcile() {
+    if (isOffline) return;
     setReconcileLoading(true);
     try {
       const updates: { inventoryItemId: string; newQuantity: number }[] = [];
@@ -291,8 +294,16 @@ export function GroceryListClient({
       await applyReconciliation(supabase, updates, deletions);
       setShowReconcile(false);
       setReconcileData([]);
-    } catch {
-      // ignore
+    } catch (err) {
+      if (!navigator.onLine) {
+        setError(
+          "You're offline — your changes weren't saved. Try again when you're back online."
+        );
+      } else {
+        setError(
+          err instanceof Error ? err.message : "Failed to apply changes."
+        );
+      }
     } finally {
       setReconcileLoading(false);
     }
