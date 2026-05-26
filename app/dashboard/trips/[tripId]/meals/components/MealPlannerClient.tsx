@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useIsOffline } from "@/app/pwa/OfflineContext";
 import {
   getOrCreateTripMealPlan,
   addMeal,
@@ -83,6 +84,7 @@ export function MealPlannerClient({
   const [editingMeal, setEditingMeal] = useState<TripMeal | null>(null);
   const [editSaving, setEditSaving] = useState(false);
 
+  const isOffline = useIsOffline();
   const tripDays = getTripDays(trip.start_date, trip.end_date);
 
   const getMealsForSlot = useCallback(
@@ -113,6 +115,7 @@ export function MealPlannerClient({
   }
 
   async function handleAddMeal(recipe?: Recipe) {
+    if (isOffline) return;
     if (!activeSlot || !isPlanner) return;
 
     const name = recipe ? null : customMealName.trim();
@@ -145,6 +148,7 @@ export function MealPlannerClient({
   }
 
   async function handleRemoveMeal(mealId: string) {
+    if (isOffline) return;
     if (!isPlanner) return;
 
     try {
@@ -161,6 +165,7 @@ export function MealPlannerClient({
     newDayDate: string,
     newMealType: MealType
   ) {
+    if (isOffline) return;
     if (!isPlanner) return;
 
     try {
@@ -327,7 +332,8 @@ export function MealPlannerClient({
           <div className="flex items-center gap-3">
             <button
               onClick={handleGetSuggestions}
-              disabled={suggestionsLoading}
+              disabled={suggestionsLoading || isOffline}
+              title={isOffline ? "Connect to the internet to update" : undefined}
               className="bg-camp-fire/20 hover:bg-camp-fire/30 text-camp-fire font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 text-sm border border-camp-fire/30 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg
@@ -423,10 +429,12 @@ export function MealPlannerClient({
                     )}
                     <button
                       onClick={() => handleAddSuggestion(s, i)}
-                      disabled={isAdding || !hasEmptySlot}
+                      disabled={isAdding || !hasEmptySlot || isOffline}
                       className="bg-camp-forest hover:bg-camp-pine text-white text-xs font-medium py-1 px-3 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       title={
-                        !hasEmptySlot
+                        isOffline
+                          ? "Connect to the internet to add meals"
+                          : !hasEmptySlot
                           ? `No empty ${s.meal_type} slot on this trip`
                           : undefined
                       }
@@ -482,7 +490,7 @@ export function MealPlannerClient({
                     {slotMeals.map((meal) => (
                       <div
                         key={meal.id}
-                        draggable={isPlanner}
+                        draggable={isPlanner && !isOffline}
                         onDragStart={(e) => handleDragStart(e, meal.id)}
                         onClick={() => setEditingMeal(meal)}
                         className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-2 mb-2 group cursor-pointer transition-colors"
@@ -505,8 +513,9 @@ export function MealPlannerClient({
                                 e.stopPropagation();
                                 handleRemoveMeal(meal.id);
                               }}
-                              className="text-camp-earth/40 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 shrink-0"
-                              title="Remove meal"
+                              disabled={isOffline}
+                              className="text-camp-earth/40 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                              title={isOffline ? "Connect to the internet to delete" : "Remove meal"}
                             >
                               <svg
                                 className="w-3.5 h-3.5"
@@ -570,9 +579,10 @@ export function MealPlannerClient({
                               <button
                                 onClick={() => handleAddMeal()}
                                 disabled={
-                                  saving || !customMealName.trim()
+                                  saving || !customMealName.trim() || isOffline
                                 }
-                                className="bg-camp-forest hover:bg-camp-pine text-white text-xs font-medium py-1.5 px-3 rounded transition-colors disabled:opacity-50"
+                                title={isOffline ? "Connect to the internet to add meals" : undefined}
+                                className="bg-camp-forest hover:bg-camp-pine text-white text-xs font-medium py-1.5 px-3 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 {saving ? "Adding..." : "Add"}
                               </button>
@@ -598,8 +608,9 @@ export function MealPlannerClient({
                             <div className="flex gap-2">
                               <button
                                 onClick={() => handleAddMeal(previewRecipe)}
-                                disabled={saving}
-                                className="bg-camp-forest hover:bg-camp-pine text-white text-xs font-medium py-1.5 px-3 rounded transition-colors disabled:opacity-50"
+                                disabled={saving || isOffline}
+                                title={isOffline ? "Connect to the internet to add meals" : undefined}
+                                className="bg-camp-forest hover:bg-camp-pine text-white text-xs font-medium py-1.5 px-3 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 {saving ? "Adding..." : "Add to slot"}
                               </button>
@@ -667,7 +678,9 @@ export function MealPlannerClient({
                       isPlanner && (
                         <button
                           onClick={() => openSlotEditor(dayDate, mealType)}
-                          className="w-full text-center py-2 text-camp-earth/40 hover:text-camp-forest text-xs transition-colors border border-dashed border-white/10 hover:border-camp-forest/30 rounded-lg"
+                          disabled={isOffline}
+                          title={isOffline ? "Connect to the internet to add meals" : undefined}
+                          className="w-full text-center py-2 text-camp-earth/40 hover:text-camp-forest text-xs transition-colors border border-dashed border-white/10 hover:border-camp-forest/30 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           + Add meal
                         </button>

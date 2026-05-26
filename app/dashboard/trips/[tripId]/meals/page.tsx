@@ -4,6 +4,7 @@ import { getTripById, getUserRoleForTrip } from "@/lib/queries/trips";
 import { getTripMealPlan } from "@/lib/queries/meals";
 import { getRecipes } from "@/lib/queries/meals";
 import { MealPlannerClient } from "./components/MealPlannerClient";
+import { CacheFreshness } from "@/app/pwa/CacheFreshness";
 
 export default async function TripMealsPage({
   params,
@@ -44,6 +45,7 @@ export default async function TripMealsPage({
 
   return (
     <div>
+      <CacheFreshness />
       <div className="mb-6">
         <Link
           href={`/dashboard/trips/${tripId}`}

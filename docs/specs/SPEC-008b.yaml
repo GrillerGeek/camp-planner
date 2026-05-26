@@ -3,7 +3,8 @@ spec:
   name: "Reservations + history follow-ups: PWA offline, full-trip search, upload validation"
   product: "PROD-001"
   parent: "SPEC-008"
-  status: "backlog"
+  status: "shipped"
+  shipped_on: "2026-05-25"
   owner: "Jason Robey"
   created: "2026-05-15"
 
@@ -22,6 +23,8 @@ spec:
   scope:
     - id: "SPEC-008b.1"
       summary: "PWA offline reservations (EXP-025)"
+      status: "shipped"
+      shipped_on: "2026-05-25"
       problem: >
         Trip reservations should be viewable offline at the campsite where
         cell coverage drops. Manifest.json exists but there is no service
@@ -34,6 +37,60 @@ spec:
       priority: "high"
       reason: "Removes a fictional feature; real value at campsites."
       complexity: "Large — service worker, install prompt, caching strategy, offline-first UX states."
+      implementation: >
+        Serwist on Turbopack (@serwist/turbopack + serwist + esbuild).
+        next.config.ts wrapped with withSerwist; SW source at app/sw.ts;
+        route handler at app/serwist/[path]/route.ts; SerwistProvider in
+        root layout registers the SW client-side. /serwist/, /sw.js, and
+        /sw.js.map excluded from the auth proxy matcher so registration
+        works for unauthenticated users.
+
+        Trip-routes runtime caching: StaleWhileRevalidate over a canonical
+        UUID regex (/dashboard/trips/{uuid}{,/reservations,/packing,/meals})
+        in a 'trip-pages' cache (max 100 entries, 30-day TTL). Matcher
+        excludes requests with the RSC: 1 header — RSC payloads fall
+        through to defaultCache's pages-rsc bucket so HTML and RSC don't
+        clobber each other under the same key. CacheableResponsePlugin
+        (statuses [200]) + a custom rejectRedirected plugin prevent
+        cached auth-redirect pages from poisoning trip URLs.
+
+        Client surface: app/pwa/ contains OfflineContext (+ useIsOffline
+        hook), OfflineBanner (sticky top-of-dashboard when offline),
+        InstallButton (beforeinstallprompt + iOS-Safari fallback hint,
+        localStorage dismissal), CachePrefetcher (mounted on trip detail,
+        fires plain fetch() for the three sub-tabs 1s after mount so the
+        SW caches them eagerly), CacheFreshness (small italic label when
+        offline), and OfflineEmptyState (reused by four error.tsx
+        boundaries — the first in the app — for never-cached trips
+        encountered while offline).
+
+        Edit-button gating: useIsOffline() disables ~25 mutation buttons
+        across reservations / packing / meals / tasks / grocery clients
+        with explanatory tooltips. Try/catch blocks distinguish offline
+        failures from other errors via navigator.onLine and surface a
+        user-friendly "you're offline" message. Optimistic-mutation
+        handlers (toggle packed, toggle purchased, drag-and-drop meal
+        move) bail early with `if (isOffline) return;` as belt-and-
+        suspenders against any path that bypasses the disabled button
+        (drag-drop has no button; race between offline-flip and click).
+
+        On sign-out: caches.delete("trip-pages") clears cached pages so
+        a subsequent sign-in (potentially as another user) can't see the
+        previous account's trips. Failures swallowed so cache errors
+        can't block sign-out.
+
+        Simplification adopted vs the original design: CacheFreshness
+        shows a static "Showing cached data" label rather than a per-page
+        "cached · X min ago" delta — avoids SW↔client postMessage
+        plumbing for marginal user value, since the banner already
+        conveys "last synced." Can be added back later if needed.
+
+        EXP-025 amended: write-queue + custom-eviction edge cases dropped
+        (descoped as YAGNI for v1). Manual test log lives at
+        docs/specs/SPEC-008b.1-test-log.md.
+
+        Design: docs/superpowers/specs/2026-05-25-pwa-offline-reservations-design.md
+        Plan:   docs/superpowers/plans/2026-05-25-pwa-offline-reservations.md
 
     - id: "SPEC-008b.2"
       summary: "History search across all journal entries"
