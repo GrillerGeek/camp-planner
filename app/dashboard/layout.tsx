@@ -5,6 +5,7 @@ import { SignOutButton } from "./sign-out-button";
 import { OfflineProvider } from "@/app/pwa/OfflineContext";
 import { OfflineBanner } from "@/app/pwa/OfflineBanner";
 import { InstallButton } from "@/app/pwa/InstallButton";
+import { DashboardNav } from "./components/DashboardNav";
 
 export default async function DashboardLayout({
   children,
@@ -26,33 +27,14 @@ export default async function DashboardLayout({
     <div className="min-h-screen bg-camp-night">
       <header className="border-b border-white/10 bg-camp-night/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2 sm:gap-6">
+            <DashboardNav />
             <Link href="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
               <span className="text-xl">🏕️</span>
               <span className="text-white font-semibold text-lg">
                 Camp Planner
               </span>
             </Link>
-            <nav className="hidden sm:flex items-center gap-4">
-              <Link href="/dashboard" className="text-camp-earth hover:text-white text-sm transition-colors">
-                Trips
-              </Link>
-              <Link href="/dashboard/templates" className="text-camp-earth hover:text-white text-sm transition-colors">
-                Packing Templates
-              </Link>
-              <Link href="/dashboard/task-templates" className="text-camp-earth hover:text-white text-sm transition-colors">
-                Task Templates
-              </Link>
-              <Link href="/dashboard/recipes" className="text-camp-earth hover:text-white text-sm transition-colors">
-                Recipes
-              </Link>
-              <Link href="/dashboard/inventory" className="text-camp-earth hover:text-white text-sm transition-colors">
-                Inventory
-              </Link>
-              <Link href="/dashboard/history" className="text-camp-earth hover:text-white text-sm transition-colors">
-                History
-              </Link>
-            </nav>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-camp-earth text-sm hidden sm:inline">
