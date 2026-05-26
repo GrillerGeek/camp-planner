@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useIsOffline } from "@/app/pwa/OfflineContext";
 import {
   TripReservation,
   ReservationFormData,
@@ -61,6 +62,7 @@ export function ReservationsClient({
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const supabase = createClient();
+  const isOffline = useIsOffline();
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -104,7 +106,13 @@ export function ReservationsClient({
       setForm(emptyForm);
       setShowForm(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save reservation.");
+      if (!navigator.onLine) {
+        setError(
+          "You're offline — your changes weren't saved. Try again when you're back online."
+        );
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to save reservation.");
+      }
     } finally {
       setSaving(false);
     }
@@ -123,7 +131,13 @@ export function ReservationsClient({
       setReservations((prev) => prev.filter((r) => r.id !== id));
       setDeleteConfirmId(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete reservation.");
+      if (!navigator.onLine) {
+        setError(
+          "You're offline — your changes weren't saved. Try again when you're back online."
+        );
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to delete reservation.");
+      }
     }
   };
 
@@ -169,12 +183,14 @@ export function ReservationsClient({
           </p>
           {isPlanner && (
             <button
+              disabled={isOffline}
+              title={isOffline ? "Connect to the internet to add reservations" : undefined}
               onClick={() => {
                 setShowForm(true);
                 setEditingId(null);
                 setForm(emptyForm);
               }}
-              className="inline-block bg-camp-forest hover:bg-camp-pine text-white font-medium py-2.5 px-5 rounded-lg transition-colors"
+              className="inline-block bg-camp-forest hover:bg-camp-pine text-white font-medium py-2.5 px-5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Add Reservation
             </button>
@@ -215,8 +231,10 @@ export function ReservationsClient({
                 {isPlanner && (
                   <div className="flex items-center gap-1 shrink-0">
                     <button
+                      disabled={isOffline}
+                      title={isOffline ? "Connect to the internet to edit" : undefined}
                       onClick={() => handleEdit(reservation)}
-                      className="text-camp-earth hover:text-white text-sm py-1 px-2 rounded hover:bg-white/10 transition-colors"
+                      className="text-camp-earth hover:text-white text-sm py-1 px-2 rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Edit
                     </button>
@@ -237,8 +255,10 @@ export function ReservationsClient({
                       </div>
                     ) : (
                       <button
+                        disabled={isOffline}
+                        title={isOffline ? "Connect to the internet to delete" : undefined}
                         onClick={() => setDeleteConfirmId(reservation.id)}
-                        className="text-red-400/60 hover:text-red-400 text-sm py-1 px-2 rounded hover:bg-red-500/10 transition-colors"
+                        className="text-red-400/60 hover:text-red-400 text-sm py-1 px-2 rounded hover:bg-red-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Delete
                       </button>
@@ -297,12 +317,14 @@ export function ReservationsClient({
       {/* Add button (when not showing form and has reservations) */}
       {isPlanner && !showForm && reservations.length > 0 && (
         <button
+          disabled={isOffline}
+          title={isOffline ? "Connect to the internet to add reservations" : undefined}
           onClick={() => {
             setShowForm(true);
             setEditingId(null);
             setForm(emptyForm);
           }}
-          className="bg-camp-forest hover:bg-camp-pine text-white text-sm font-medium py-2.5 px-5 rounded-lg transition-colors flex items-center gap-2"
+          className="bg-camp-forest hover:bg-camp-pine text-white text-sm font-medium py-2.5 px-5 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <svg
             className="w-4 h-4"
@@ -485,8 +507,9 @@ export function ReservationsClient({
           <div className="flex items-center gap-3 mt-4">
             <button
               type="submit"
-              disabled={saving}
-              className="bg-camp-forest hover:bg-camp-pine text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+              disabled={saving || isOffline}
+              title={isOffline ? "Connect to the internet to save" : undefined}
+              className="bg-camp-forest hover:bg-camp-pine text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving
                 ? "Saving..."
