@@ -29,29 +29,36 @@ export function InstallButton() {
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(
     null
   );
-  // Derive initial values synchronously so no setState call is needed inside the effect.
-  const [showIosHint, setShowIosHint] = useState(() => {
-    if (typeof window === "undefined") return false;
-    if (localStorage.getItem(DISMISS_KEY) === "true") return false;
-    if (isStandalone()) return false;
-    return isIosSafari();
-  });
-  const [dismissed, setDismissed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem(DISMISS_KEY) === "true";
-  });
+  const [showIosHint, setShowIosHint] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
+  // SSR-safe initialization: keep all initial state false so server-rendered HTML
+  // matches the first client render, then read localStorage / UA on mount.
+  // The setState calls below intentionally trigger one re-render — they're the
+  // canonical pattern for state derived from browser APIs (localStorage,
+  // navigator, matchMedia) that aren't available during server rendering.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    // Already dismissed or running on iOS Safari (handled by showIosHint) — skip.
-    if (dismissed || showIosHint || isStandalone()) return;
-
+    if (typeof window === "undefined") return;
+    if (localStorage.getItem(DISMISS_KEY) === "true") {
+      setDismissed(true);
+      return;
+    }
+    if (isStandalone()) {
+      return;
+    }
+    if (isIosSafari()) {
+      setShowIosHint(true);
+      return;
+    }
     const handler = (e: Event) => {
       e.preventDefault();
       setInstallEvent(e as BeforeInstallPromptEvent);
     };
     window.addEventListener("beforeinstallprompt", handler);
     return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, [dismissed, showIosHint]);
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleDismiss = () => {
     localStorage.setItem(DISMISS_KEY, "true");
