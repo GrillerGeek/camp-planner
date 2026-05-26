@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { SignOutButton } from "./sign-out-button";
 import { OfflineProvider } from "@/app/pwa/OfflineContext";
 import { OfflineBanner } from "@/app/pwa/OfflineBanner";
+import { InstallButton } from "@/app/pwa/InstallButton";
 
 export default async function DashboardLayout({
   children,
@@ -64,6 +65,7 @@ export default async function DashboardLayout({
                 className="w-8 h-8 rounded-full"
               />
             )}
+            <InstallButton />
             <SignOutButton />
           </div>
         </div>
