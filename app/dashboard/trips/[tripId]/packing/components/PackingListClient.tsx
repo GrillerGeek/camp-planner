@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useIsOffline } from "@/app/pwa/OfflineContext";
 import {
   addPackingItem,
   togglePacked,
@@ -58,6 +59,7 @@ export function PackingListClient({
   );
 
   const supabase = createClient();
+  const isOffline = useIsOffline();
 
   // Realtime subscription for packing items
   const packingListId = packingList?.id;
@@ -307,7 +309,9 @@ export function PackingListClient({
         {isPlanner && (
           <button
             onClick={handleShowTemplates}
-            className="bg-camp-sky hover:bg-camp-sky/80 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+            disabled={isOffline}
+            title={isOffline ? "Connect to the internet to update" : undefined}
+            className="bg-camp-sky hover:bg-camp-sky/80 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg
               className="w-4 h-4"
@@ -391,8 +395,9 @@ export function PackingListClient({
             />
             <button
               type="submit"
-              disabled={loading || !newItem.name.trim()}
-              className="bg-camp-forest hover:bg-camp-pine disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors whitespace-nowrap"
+              disabled={loading || !newItem.name.trim() || isOffline}
+              title={isOffline ? "Connect to the internet to add items" : undefined}
+              className="bg-camp-forest hover:bg-camp-pine disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors whitespace-nowrap"
             >
               {loading ? "Adding..." : "Add"}
             </button>
@@ -444,14 +449,17 @@ export function PackingListClient({
                           handleTogglePacked(item.id, item.is_packed)
                         }
                         disabled={
-                          !isPlanner &&
-                          (!currentUserId ||
-                            !item.assignees.includes(currentUserId))
+                          isOffline ||
+                          (!isPlanner &&
+                            (!currentUserId ||
+                              !item.assignees.includes(currentUserId)))
                         }
                         title={
-                          !isPlanner &&
-                          (!currentUserId ||
-                            !item.assignees.includes(currentUserId))
+                          isOffline
+                            ? "Connect to the internet to update"
+                            : !isPlanner &&
+                              (!currentUserId ||
+                                !item.assignees.includes(currentUserId))
                             ? "Only an assignee or a planner can mark this packed"
                             : undefined
                         }
@@ -460,9 +468,10 @@ export function PackingListClient({
                             ? "bg-camp-forest border-camp-forest"
                             : "border-white/30 hover:border-camp-forest"
                         } ${
-                          !isPlanner &&
-                          (!currentUserId ||
-                            !item.assignees.includes(currentUserId))
+                          isOffline ||
+                          (!isPlanner &&
+                            (!currentUserId ||
+                              !item.assignees.includes(currentUserId)))
                             ? "cursor-not-allowed opacity-60"
                             : ""
                         }`}
@@ -529,12 +538,15 @@ export function PackingListClient({
                                 onClick={() =>
                                   handleToggleAssignee(item.id, m.user_id)
                                 }
+                                disabled={isOffline}
                                 title={
-                                  assigned
+                                  isOffline
+                                    ? "Connect to the internet to update"
+                                    : assigned
                                     ? `Unassign ${m.display_name}`
                                     : `Assign ${m.display_name}`
                                 }
-                                className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                                className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                                   assigned
                                     ? "bg-camp-forest/25 border-camp-forest/60 text-camp-forest"
                                     : "border-white/10 text-camp-earth/50 hover:text-camp-earth hover:border-white/20"
@@ -561,7 +573,9 @@ export function PackingListClient({
                       {isPlanner && (
                         <button
                           onClick={() => handleDeleteItem(item.id)}
-                          className="text-camp-earth/30 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                          disabled={isOffline}
+                          title={isOffline ? "Connect to the internet to delete" : undefined}
+                          className="text-camp-earth/30 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <svg
                             className="w-4 h-4"
@@ -642,8 +656,9 @@ export function PackingListClient({
                       <button
                         key={template.id}
                         onClick={() => handleApplyTemplate(template.id)}
-                        disabled={!!applyingTemplateId}
-                        className={`w-full text-left bg-white/5 border rounded-lg p-3 hover:border-white/20 transition-colors disabled:opacity-50 ${
+                        disabled={!!applyingTemplateId || isOffline}
+                        title={isOffline ? "Connect to the internet to update" : undefined}
+                        className={`w-full text-left bg-white/5 border rounded-lg p-3 hover:border-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                           isRecommended
                             ? "border-camp-forest/50"
                             : seasonMatch || typeMatch

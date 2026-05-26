@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useIsOffline } from "@/app/pwa/OfflineContext";
 import {
   createTask,
   updateTask,
@@ -70,6 +71,7 @@ export function TaskListClient({
   });
 
   const supabase = createClient();
+  const isOffline = useIsOffline();
 
   // Realtime subscription for trip_tasks
   useEffect(() => {
@@ -144,11 +146,17 @@ export function TaskListClient({
       });
       setShowAddForm(false);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Couldn't add the task. Try again."
-      );
+      if (!navigator.onLine) {
+        setError(
+          "You're offline — your changes weren't saved. Try again when you're back online."
+        );
+      } else {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Couldn't add the task. Try again."
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -361,7 +369,9 @@ export function TaskListClient({
           <>
             <button
               onClick={() => setShowAddForm(!showAddForm)}
-              className="bg-camp-forest hover:bg-camp-pine text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+              disabled={isOffline}
+              title={isOffline ? "Connect to the internet to add tasks" : undefined}
+              className="bg-camp-forest hover:bg-camp-pine text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg
                 className="w-4 h-4"
@@ -381,7 +391,9 @@ export function TaskListClient({
 
             <button
               onClick={handleShowTemplates}
-              className="bg-camp-sky hover:bg-camp-sky/80 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+              disabled={isOffline}
+              title={isOffline ? "Connect to the internet to update" : undefined}
+              className="bg-camp-sky hover:bg-camp-sky/80 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg
                 className="w-4 h-4"
@@ -544,8 +556,9 @@ export function TaskListClient({
             <div className="flex items-center gap-3">
               <button
                 type="submit"
-                disabled={loading || !newTask.title.trim()}
-                className="bg-camp-forest hover:bg-camp-pine disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
+                disabled={loading || !newTask.title.trim() || isOffline}
+                title={isOffline ? "Connect to the internet to add tasks" : undefined}
+                className="bg-camp-forest hover:bg-camp-pine disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
               >
                 {loading ? "Adding..." : "Add Task"}
               </button>
@@ -627,8 +640,9 @@ export function TaskListClient({
                   <button
                     key={template.id}
                     onClick={() => handleApplyTemplate(template.id)}
-                    disabled={templateLoading}
-                    className="w-full text-left bg-white/5 border border-white/10 rounded-lg p-3 hover:border-white/20 transition-colors disabled:opacity-50"
+                    disabled={templateLoading || isOffline}
+                    title={isOffline ? "Connect to the internet to update" : undefined}
+                    className="w-full text-left bg-white/5 border border-white/10 rounded-lg p-3 hover:border-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-white font-medium text-sm">
@@ -770,7 +784,9 @@ export function TaskListClient({
                     <button
                       type="button"
                       onClick={() => handleSaveEdit(task.id)}
-                      className="bg-camp-forest hover:bg-camp-pine text-white text-sm font-medium py-1.5 px-3 rounded-lg transition-colors"
+                      disabled={isOffline}
+                      title={isOffline ? "Connect to the internet to save" : undefined}
+                      className="bg-camp-forest hover:bg-camp-pine text-white text-sm font-medium py-1.5 px-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Save
                     </button>
@@ -798,11 +814,14 @@ export function TaskListClient({
                       <button
                         onClick={() =>
                           canToggle &&
+                          !isOffline &&
                           handleToggleComplete(task.id, task.is_completed)
                         }
-                        disabled={!canToggle}
+                        disabled={!canToggle || isOffline}
                         title={
-                          canToggle
+                          isOffline
+                            ? "Connect to the internet to update"
+                            : canToggle
                             ? undefined
                             : "Only the assignee or a planner can complete this task"
                         }
@@ -810,7 +829,7 @@ export function TaskListClient({
                           task.is_completed
                             ? "bg-camp-forest border-camp-forest"
                             : "border-white/30 hover:border-camp-forest"
-                        } ${!canToggle ? "cursor-not-allowed opacity-60" : ""}`}
+                        } ${!canToggle || isOffline ? "cursor-not-allowed opacity-60" : ""}`}
                       >
                         {task.is_completed && (
                           <svg
@@ -886,8 +905,9 @@ export function TaskListClient({
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                       <button
                         onClick={() => startEditing(task)}
-                        className="text-camp-earth/40 hover:text-camp-sky transition-colors p-1"
-                        title="Edit task"
+                        disabled={isOffline}
+                        className="text-camp-earth/40 hover:text-camp-sky transition-colors p-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={isOffline ? "Connect to the internet to edit" : "Edit task"}
                       >
                         <svg
                           className="w-4 h-4"
@@ -905,8 +925,9 @@ export function TaskListClient({
                       </button>
                       <button
                         onClick={() => handleDeleteTask(task.id)}
-                        className="text-camp-earth/40 hover:text-red-400 transition-colors p-1"
-                        title="Delete task"
+                        disabled={isOffline}
+                        className="text-camp-earth/40 hover:text-red-400 transition-colors p-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={isOffline ? "Connect to the internet to delete" : "Delete task"}
                       >
                         <svg
                           className="w-4 h-4"

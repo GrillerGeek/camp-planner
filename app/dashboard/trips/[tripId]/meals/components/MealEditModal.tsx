@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useIsOffline } from "@/app/pwa/OfflineContext";
 import {
   Recipe,
   RecipeSnapshot,
@@ -58,6 +59,7 @@ export function MealEditModal({
   const initialNotes = meal.notes ?? "";
 
   const isCompleted = trip.status === "completed";
+  const isOffline = useIsOffline();
 
   const [recipeId, setRecipeId] = useState<string | null>(initialRecipeId);
   const [customName, setCustomName] = useState(initialCustomName);
@@ -123,7 +125,13 @@ export function MealEditModal({
         notes: notes.trim() || null,
       });
     } catch {
-      setSaveError("Couldn't save your changes. Please try again.");
+      if (!navigator.onLine) {
+        setSaveError(
+          "You're offline — your changes weren't saved. Try again when you're back online."
+        );
+      } else {
+        setSaveError("Couldn't save your changes. Please try again.");
+      }
     }
   }
 
@@ -270,10 +278,12 @@ export function MealEditModal({
               <>
                 <button
                   onClick={() => setPickingRecipe(true)}
-                  disabled={saving || isCompleted}
+                  disabled={saving || isCompleted || isOffline}
                   title={
                     isCompleted
                       ? "Completed trips show the recipe as it was at assignment time."
+                      : isOffline
+                      ? "Connect to the internet to edit"
                       : undefined
                   }
                   className="bg-white/5 hover:bg-white/10 text-white text-xs font-medium py-1.5 px-3 rounded border border-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -283,8 +293,9 @@ export function MealEditModal({
                 {!isCompleted && (
                   <button
                     onClick={handleClearRecipe}
-                    disabled={saving}
-                    className="text-camp-earth/60 hover:text-white text-xs py-1.5 px-2 transition-colors disabled:opacity-50"
+                    disabled={saving || isOffline}
+                    title={isOffline ? "Connect to the internet to edit" : undefined}
+                    className="text-camp-earth/60 hover:text-white text-xs py-1.5 px-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Use custom name
                   </button>
@@ -293,10 +304,12 @@ export function MealEditModal({
             ) : (
               <button
                 onClick={() => setPickingRecipe(true)}
-                disabled={saving || isCompleted}
+                disabled={saving || isCompleted || isOffline}
                 title={
                   isCompleted
                     ? "Completed trips show the recipe as it was at assignment time."
+                    : isOffline
+                    ? "Connect to the internet to edit"
                     : undefined
                 }
                 className="bg-white/5 hover:bg-white/10 text-white text-xs font-medium py-1.5 px-3 rounded border border-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -315,7 +328,8 @@ export function MealEditModal({
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={!canSave}
+                disabled={!canSave || isOffline}
+                title={isOffline ? "Connect to the internet to save" : undefined}
                 className="bg-camp-forest hover:bg-camp-pine text-white text-xs font-medium py-1.5 px-4 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {saving ? "Saving..." : "Save changes"}

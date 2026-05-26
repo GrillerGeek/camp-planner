@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useIsOffline } from "@/app/pwa/OfflineContext";
 import {
   generateGroceryListFromMeals,
   addGroceryItem,
@@ -61,6 +62,7 @@ export function GroceryListClient({
   );
 
   const supabase = createClient();
+  const isOffline = useIsOffline();
 
   // Realtime subscription
   const groceryListId = groceryList?.id;
@@ -120,11 +122,17 @@ export function GroceryListClient({
       setItems(result.trip_grocery_items ?? []);
       setIsStale(false);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Couldn't generate the grocery list. Try again."
-      );
+      if (!navigator.onLine) {
+        setError(
+          "You're offline — your changes weren't saved. Try again when you're back online."
+        );
+      } else {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Couldn't generate the grocery list. Try again."
+        );
+      }
     } finally {
       setGenerating(false);
     }
@@ -226,11 +234,17 @@ export function GroceryListClient({
       }
       setTimeout(() => setAddToInventoryToast(null), 4000);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Couldn't add purchased items to inventory."
-      );
+      if (!navigator.onLine) {
+        setError(
+          "You're offline — your changes weren't saved. Try again when you're back online."
+        );
+      } else {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Couldn't add purchased items to inventory."
+        );
+      }
     } finally {
       setAddToInventoryLoading(false);
     }
@@ -327,8 +341,9 @@ export function GroceryListClient({
           </div>
           <button
             onClick={handleGenerate}
-            disabled={generating}
-            className="bg-camp-fire/80 hover:bg-camp-fire disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors shrink-0"
+            disabled={generating || isOffline}
+            title={isOffline ? "Connect to the internet to update" : undefined}
+            className="bg-camp-fire/80 hover:bg-camp-fire disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors shrink-0"
           >
             {generating ? "Regenerating..." : "Regenerate"}
           </button>
@@ -362,8 +377,9 @@ export function GroceryListClient({
         {isPlanner && (
           <button
             onClick={handleGenerate}
-            disabled={generating}
-            className="bg-camp-sky hover:bg-camp-sky/80 disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+            disabled={generating || isOffline}
+            title={isOffline ? "Connect to the internet to update" : undefined}
+            className="bg-camp-sky hover:bg-camp-sky/80 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
           >
             {generating ? (
               <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24">
@@ -411,9 +427,9 @@ export function GroceryListClient({
           ) && (
             <button
               onClick={handleAddPurchasedToInventory}
-              disabled={addToInventoryLoading}
-              className="bg-camp-forest hover:bg-camp-pine disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
-              title="Add the items you've checked off to your camper inventory"
+              disabled={addToInventoryLoading || isOffline}
+              className="bg-camp-forest hover:bg-camp-pine disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+              title={isOffline ? "Connect to the internet to update" : "Add the items you've checked off to your camper inventory"}
             >
               <svg
                 className="w-4 h-4"
@@ -435,8 +451,9 @@ export function GroceryListClient({
         {isPlanner && trip.status === "completed" && (
           <button
             onClick={handleStartReconcile}
-            disabled={reconcileLoading}
-            className="bg-camp-fire hover:bg-camp-fire/80 disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+            disabled={reconcileLoading || isOffline}
+            title={isOffline ? "Connect to the internet to update" : undefined}
+            className="bg-camp-fire hover:bg-camp-fire/80 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
           >
             <svg
               className="w-4 h-4"
@@ -528,8 +545,9 @@ export function GroceryListClient({
           <div className="flex gap-2">
             <button
               onClick={handleApplyReconcile}
-              disabled={reconcileLoading || reconcileData.length === 0}
-              className="bg-camp-forest hover:bg-camp-pine disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
+              disabled={reconcileLoading || reconcileData.length === 0 || isOffline}
+              title={isOffline ? "Connect to the internet to save" : undefined}
+              className="bg-camp-forest hover:bg-camp-pine disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
             >
               {reconcileLoading ? "Applying..." : "Apply Changes"}
             </button>
@@ -596,8 +614,9 @@ export function GroceryListClient({
             </select>
             <button
               type="submit"
-              disabled={loading || !newItem.name.trim()}
-              className="bg-camp-forest hover:bg-camp-pine disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors whitespace-nowrap"
+              disabled={loading || !newItem.name.trim() || isOffline}
+              title={isOffline ? "Connect to the internet to add items" : undefined}
+              className="bg-camp-forest hover:bg-camp-pine disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors whitespace-nowrap"
             >
               {loading ? "Adding..." : "Add"}
             </button>
@@ -642,7 +661,9 @@ export function GroceryListClient({
                         onClick={() =>
                           handleTogglePurchased(item.id, item.is_purchased)
                         }
-                        className={`w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
+                        disabled={isOffline}
+                        title={isOffline ? "Connect to the internet to update" : undefined}
+                        className={`w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                           item.is_purchased
                             ? "bg-camp-forest border-camp-forest"
                             : "border-white/30 hover:border-camp-forest"
@@ -705,7 +726,9 @@ export function GroceryListClient({
                       {isPlanner && (
                         <button
                           onClick={() => handleDeleteItem(item.id)}
-                          className="text-camp-earth/30 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                          disabled={isOffline}
+                          title={isOffline ? "Connect to the internet to delete" : undefined}
+                          className="text-camp-earth/30 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <svg
                             className="w-4 h-4"
