@@ -43,6 +43,6 @@ function extractClientIp(request: NextRequest): string {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|manifest.json|icons/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.json|icons/|serwist/|sw\\.js|sw\\.js\\.map|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
