@@ -59,7 +59,7 @@ export function DashboardNav() {
         )}
       </button>
 
-      <nav className="hidden sm:flex items-center gap-4">
+      <nav className="hidden sm:flex sm:order-last items-center gap-4">
         {NAV_LINKS.map((link) => (
           <Link
             key={link.href}
