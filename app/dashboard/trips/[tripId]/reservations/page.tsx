@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getTripById, getUserRoleForTrip } from "@/lib/queries/trips";
 import { getTripReservations } from "@/lib/queries/reservations";
 import { ReservationsClient } from "./components/ReservationsClient";
+import { CacheFreshness } from "@/app/pwa/CacheFreshness";
 
 export default async function TripReservationsPage({
   params,
@@ -42,6 +43,7 @@ export default async function TripReservationsPage({
 
   return (
     <div>
+      <CacheFreshness />
       <div className="mb-6">
         <Link
           href={`/dashboard/trips/${tripId}`}

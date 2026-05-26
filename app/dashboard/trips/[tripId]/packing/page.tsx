@@ -6,6 +6,7 @@ import {
   getTripMembers,
 } from "@/lib/queries/packing";
 import { PackingListClient } from "./components/PackingListClient";
+import { CacheFreshness } from "@/app/pwa/CacheFreshness";
 
 export default async function TripPackingPage({
   params,
@@ -47,6 +48,7 @@ export default async function TripPackingPage({
 
   return (
     <div>
+      <CacheFreshness />
       <div className="mb-6">
         <Link
           href={`/dashboard/trips/${tripId}`}

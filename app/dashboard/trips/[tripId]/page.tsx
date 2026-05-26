@@ -10,6 +10,7 @@ import { ReadinessCard } from "./components/ReadinessCard";
 import { CompleteTripButton } from "./components/CompleteTripButton";
 import { TripEndedBanner } from "./components/TripEndedBanner";
 import { CachePrefetcher } from "@/app/pwa/CachePrefetcher";
+import { CacheFreshness } from "@/app/pwa/CacheFreshness";
 
 function todayYMD(): string {
   const d = new Date();
@@ -64,6 +65,7 @@ export default async function TripDetailPage({
     <div>
       <CachePrefetcher tripId={tripId} />
       <TripHeader trip={trip} userRole={role} />
+      <CacheFreshness />
 
       {showEndedBanner && (
         <TripEndedBanner tripId={tripId} endDate={trip.end_date} />
