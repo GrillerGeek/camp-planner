@@ -20,10 +20,10 @@ BEGIN
   -- ----------------------------------------------------------
   SELECT id INTO v_user_id
   FROM public.profiles
-  WHERE lower(email) = lower('jason.robey@gmail.com');
+  WHERE lower(email) = lower('you@example.com');
 
   IF v_user_id IS NULL THEN
-    RAISE EXCEPTION 'No profile found for jason.robey@gmail.com — sign in once first, then re-run.';
+    RAISE EXCEPTION 'No profile found for you@example.com — replace with your account email, sign in once first, then re-run.';
   END IF;
 
   -- ----------------------------------------------------------
