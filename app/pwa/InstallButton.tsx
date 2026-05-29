@@ -82,8 +82,8 @@ export function InstallButton() {
 
   if (showIosHint) {
     return (
-      <div className="hidden sm:flex items-center gap-2 text-xs text-camp-earth">
-        <span>Install: Share → Add to Home Screen</span>
+      <div className="flex items-center gap-2 text-xs text-camp-earth">
+        <span className="whitespace-nowrap">Install: Share → Add to Home Screen</span>
         <button
           onClick={handleDismiss}
           aria-label="Dismiss install hint"
