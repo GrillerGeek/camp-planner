@@ -6,6 +6,7 @@ import type {
   DailyForecast,
   ForecastResult,
   GeocodeResult,
+  WeatherAssessment,
   WeatherNudge,
 } from "@/lib/types/weather";
 import { wmoIcon, wmoLabel } from "@/lib/weather/wmo-icons";
@@ -48,7 +49,7 @@ export function WeatherCard({
   const [error, setError] = useState<string | null>(null);
 
   const [nudges, setNudges] = useState<WeatherNudge[] | null>(null);
-  const [assessment, setAssessment] = useState<string | null>(null);
+  const [assessment, setAssessment] = useState<WeatherAssessment | null>(null);
 
   async function handleFindLocation() {
     setBusy(true);
@@ -83,6 +84,7 @@ export function WeatherCard({
     setBusy(true);
     setError(null);
     setNudges(null);
+    setAssessment(null);
     const res = await checkWeatherReadiness(tripId, days);
     setBusy(false);
     if (!res.ok) {
@@ -215,6 +217,12 @@ export function WeatherCard({
           {nudges && nudges.length === 0 && assessment === "well_prepared" && (
             <p className="text-sm text-camp-pine mt-3">
               ✅ You look well prepared for the forecast.
+            </p>
+          )}
+
+          {nudges && nudges.length === 0 && assessment !== "well_prepared" && (
+            <p className="text-sm text-camp-earth mt-3">
+              No specific gaps found — still worth a glance at the forecast for your conditions.
             </p>
           )}
 
