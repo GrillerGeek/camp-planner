@@ -5,6 +5,7 @@ spec:
   status: "draft"
   owner: "Jason Robey"
   created: "2026-05-30"
+  status_note: "Tech Lead review (2026-05-30) returned GO-WITH-CHANGES; all 3 blockers + 6 warnings/suggestions folded into the spec on 2026-05-30 (see review.resolution). Ready for implementation planning."
 
   context:
     description: >
@@ -45,7 +46,7 @@ spec:
         - "Server components with client islands"
         - "Data access via lib/queries/<domain>.ts; external HTTP via server-only lib/weather/* modules"
         - "AI features in server-only lib/ai/<feature>.ts invoked from co-located actions.ts Server Actions wrapped in an {ok} discriminated union"
-        - "Forecast cached via the Next data cache (fetch revalidate), not a DB table"
+        - "Forecast cached via the Next data cache with explicit fetch options (next:{revalidate,tags}; fetch is NOT cached by default in Next 16), not a DB table; Server Actions are uncached and receive forecast as input rather than re-fetching"
         - "Mobile-first responsive design (PWA target)"
 
   expectations:
@@ -107,9 +108,10 @@ spec:
 
   boundaries:
     in_scope:
-      - "Migration 025: add nullable latitude (double precision), longitude (double precision), and location_label (text) columns to the trips table; additive and backward-compatible (existing trips read null = unresolved)"
-      - "lib/weather/geocode.ts (server-only): Open-Meteo geocoding — destination text to candidate matches with region context"
-      - "lib/weather/forecast.ts (server-only): Open-Meteo daily forecast by coordinates, scoped to trip dates, cached via the Next data cache (revalidate ~6h)"
+      - "Migration 025: add nullable latitude (double precision), longitude (double precision), and location_label (text) columns to the trips table, with MANDATORY CHECK constraints on lat/lng range and label length; additive and backward-compatible (existing trips read null = unresolved)"
+      - "lib/weather/geocode.ts (server-only): Open-Meteo geocoding — destination text to capped (top-5) candidate matches with explicit admin/country fields; AbortSignal timeout"
+      - "lib/weather/forecast.ts (server-only): Open-Meteo daily forecast by coordinates, scoped to trip dates, cached via the Next data cache with EXPLICIT next:{revalidate,tags} + a deterministic coords+dates key; horizon math relative to today; AbortSignal timeout"
+      - "lib/weather/wmo-icons.ts (or a constant map): WMO weather-code -> icon/emoji mapping so the WeatherCard doesn't invent ad-hoc icon logic; camp-* token styling"
       - "lib/types/weather.ts: DailyForecast, GeocodeResult, WeatherNudge types"
       - "lib/queries/trips.ts: updateTripLocation(client, tripId, {lat, lng, label})"
       - "lib/ai/weather-nudges.ts (server-only): generateText + Output.object + Zod, reasons over forecast + packing items + meals"
@@ -137,16 +139,24 @@ spec:
           human-readable resolved place). Additive and backward-compatible; no
           RLS change needed (columns inherit the existing trips row policies).
           Existing rows read null, which the UI treats as "location not yet
-          resolved." Optional CHECK constraints keep latitude in [-90, 90] and
-          longitude in [-180, 180].
+          resolved." MANDATORY CHECK constraints (not optional) reject
+          out-of-range values at the DB layer — the constraints are the
+          authoritative bound that the validation block asserts:
+            CHECK (latitude IS NULL OR latitude BETWEEN -90 AND 90)
+            CHECK (longitude IS NULL OR longitude BETWEEN -180 AND 180)
+          location_label is bounded with a length cap (e.g. <= 200 chars) via
+          CHECK to prevent unbounded client-written strings.
 
     types:
       - name: "lib/types/weather.ts"
         description: >
           DailyForecast (date, temp_high, temp_low, precip_probability,
-          wind_speed, wind_gust, weather_code), GeocodeResult (label, latitude,
-          longitude, region/admin context), WeatherNudge (title, detail,
+          wind_speed, wind_gust, weather_code). WeatherNudge (title, detail,
           severity: info | caution | warning, and which day(s) it relates to).
+          GeocodeResult with EXPLICIT fields (not generic "region context"):
+          name, admin1, admin2, country_code, country, latitude, longitude.
+          The picker builds a disambiguation label from these in the format
+          "<name>, <admin1>, <country_code>" (e.g. "Cedar Lake, Indiana, US").
           Trip type in lib/types/trip.ts extended with latitude, longitude,
           location_label (all nullable) to mirror the migration.
 
@@ -165,23 +175,57 @@ spec:
           (4) Unavailable — 'weather unavailable right now' degraded state.
           For viewer-role members, the forecast strip renders read-only with no
           set-location or readiness controls. A subtle affordance lets a planner
-          re-resolve the location if the destination changed.
+          re-resolve the location if the destination changed (this also busts
+          the forecast cache for the trip — see forecast.ts cache tags).
+          Past/completed guard: render WeatherCard only when NOT isPast AND
+          trip.status !== 'completed', reusing the trip page's EXISTING
+          todayYMD()/isPast computation (page.tsx) verbatim rather than
+          introducing a parallel date check.
 
     api:
       - name: "lib/weather/geocode.ts (server-only)"
         description: >
           Calls the Open-Meteo geocoding endpoint with the trip's destination
-          string; returns an array of GeocodeResult candidates (label,
-          coordinates, region context). Returns an empty array on no match.
+          string; maps results to GeocodeResult[] with the explicit fields
+          (name, admin1, admin2, country_code, country, lat, lng). Caps the
+          candidate list (top 5) to bound the picker UI. Returns an empty array
+          on no match. Wraps the fetch in AbortSignal.timeout (~4-5s) so a slow
+          provider cannot stall the geocode action; timeout/error -> empty
+          result the action surfaces as "couldn't find that place".
       - name: "lib/weather/forecast.ts (server-only)"
         description: >
           Calls the Open-Meteo forecast endpoint for given coordinates,
           requesting daily temp max/min, precipitation probability, wind speed,
           wind gusts, and weather code. Filters to the trip's date range, maps
-          to DailyForecast[]. Uses fetch with Next data-cache revalidation
-          (~6h) keyed by coordinates. Returns a typed empty/horizon result when
-          the trip is outside the provider window; throws on provider error so
-          callers can render the degraded state.
+          to DailyForecast[].
+          CACHING (Next 16, explicit — fetch is NOT cached by default): pass
+          `next: { revalidate: 21600, tags: ["trip-forecast:<tripId>"] }` on the
+          Open-Meteo call. Build a DETERMINISTIC URL so the cache key is stable
+          across renders: round lat/lng to ~2-3 decimals and use ISO dates —
+          the key is per-coords-AND-per-date-window, not "by coordinates" alone.
+          The cached path is the trip-page Server Component render. Server
+          Actions run dynamically (uncached), so checkWeatherReadiness must NOT
+          assume this fetch is cached in the action context — it instead RECEIVES
+          the already-fetched DailyForecast[] from the page as input rather than
+          re-fetching (see actions.ts). The re-resolve affordance calls
+          revalidateTag("trip-forecast:<tripId>") to bust the cache on
+          coordinate change.
+          HORIZON MATH (relative to TODAY, since the provider window is relative
+          to now — not to abstract trip dates): compute days-from-today for
+          start and end. Render the in-window subset of days and show the
+          beyond-horizon hint for any tail beyond ~16 days; a straddling trip
+          (e.g. starts day 14, ends day 18) shows the first days' forecast and a
+          "rest available closer" note. The ~6h revalidate means the day-boundary
+          can drift slightly within a cached window — acceptable, noted.
+          RELIABILITY: wrap the fetch in AbortSignal.timeout (~4-5s); timeout or
+          provider error -> caller renders the "unavailable" degraded state so a
+          hung request cannot stall the trip page Promise.all fan-out.
+      - name: "lib/weather/wmo-icons.ts"
+        description: >
+          Pure WMO weather-code -> icon/emoji mapping (a constant map + a small
+          lookup helper) consumed by the WeatherCard forecast strip, so the
+          component does not invent ad-hoc icon logic. Icons styled with camp-*
+          tokens per the no-hand-rolled-hex rule.
       - name: "lib/ai/weather-nudges.ts (server-only)"
         description: >
           generateText + Output.object over a Zod schema producing an array of
@@ -192,18 +236,47 @@ spec:
           advisory, specific, plan-grounded suggestions (and an explicit
           'well prepared' result when no gaps), never to fabricate items not
           implied by the conditions.
+          COST BOUNDS (mirror the meal-suggestions reference, which caps the
+          recipe library at 50 and pins the model): cap packing input (slice to
+          ~40 items, or summarize as category counts when larger) and meal input
+          similarly; PIN the model string to the repo convention
+          ("anthropic/claude-sonnet-4.6"); bound the WeatherNudge array in the
+          Zod schema with .max(6). Together with the blocker-1 planner gate, this
+          caps both who can spend tokens and how many per call.
       - name: "app/dashboard/trips/[tripId]/weather/actions.ts (Server Actions)"
         description: >
-          geocodeDestination(tripId) -> {ok, candidates} (planner-only):
-          re-fetches the trip, calls lib/weather/geocode.
-          saveTripLocation(tripId, {lat, lng, label}) -> {ok} (planner-only):
-          re-checks role via getUserRoleForTrip, validates the payload, calls
-          updateTripLocation, revalidates the trip path.
-          checkWeatherReadiness(tripId) -> {ok, nudges} (planner-only):
-          re-fetches the trip + role, fetches forecast + packing + meals
-          server-side, calls generateWeatherNudges, returns nudges. All wrap
-          failures in {ok: false, error} and log server-side (meal-action
-          pattern).
+          All three re-fetch the trip server-side and wrap results in an
+          {ok: true | false} discriminated union, logging failures server-side
+          (meal-action pattern). PLANNER ENFORCEMENT NOTE: unlike the existing
+          meals action (which relies on RLS alone), these MUST gate on role
+          explicitly where RLS does not cover the operation — see
+          checkWeatherReadiness below.
+
+          geocodeDestination(tripId) -> {ok, candidates}: re-fetches the trip,
+          calls lib/weather/geocode. Planner-gated (calls getUserRoleForTrip;
+          reject non-planner) — geocoding is a write-precursor, not free.
+
+          saveTripLocation(tripId, {lat, lng, label}) -> {ok}: re-checks role
+          via getUserRoleForTrip (defense-in-depth — the trips UPDATE RLS policy,
+          migration 001, is the real boundary and already blocks viewers).
+          CONCRETE payload validation (client coords are a trust boundary, cf.
+          migration-024 server-stamping): lat/lng must be FINITE numbers in
+          range (-90..90 / -180..180), label a trimmed non-empty string within
+          the length cap; reject anything else with {ok:false}. PREFER validating
+          the chosen coords against one of the GeocodeResult candidates the
+          server just returned over trusting arbitrary client-posted lat/lng.
+          Calls updateTripLocation, then revalidates the trip path AND
+          revalidateTag("trip-forecast:<tripId>") to drop any stale forecast.
+
+          checkWeatherReadiness(tripId, forecast) -> {ok, nudges}: HARD planner
+          gate FIRST — call getUserRoleForTrip and return {ok:false} when role
+          !== 'planner' BEFORE any work. This gate is the authorization boundary
+          for AI cost: RLS does NOT stop a viewer here (the action only reads
+          viewer-readable forecast/packing/meals, then spends gateway tokens).
+          Receives the page's already-fetched DailyForecast[] as input (Server
+          Actions are uncached, so re-fetching here would bypass the data cache);
+          fetches packing + meals server-side, calls generateWeatherNudges,
+          returns nudges.
 
   validation:
     - expectation: "EXP-032"
@@ -213,3 +286,229 @@ spec:
     - expectation: "EXP-034"
       criteria: "As a viewer, confirm the forecast renders read-only with no set-location or readiness controls. Invoke saveTripLocation and checkWeatherReadiness directly as a viewer and confirm both are rejected server-side. Confirm a completed/past trip renders no weather card. Confirm a second planner sees the location resolved by the first without re-resolving. Change a trip's destination after resolution and confirm the re-resolve affordance is available."
     - criteria: "Confirm no new environment secret is required (Open-Meteo keyless). Confirm forecast responses are cached (repeat dashboard loads within the window do not re-hit the provider). Confirm latitude/longitude CHECK constraints reject out-of-range values. Confirm the migration is additive and existing trips load normally with null location."
+
+  review:
+    reviewer: "Tech Lead (AI-assisted, Opus 4.8)"
+    date: "2026-05-30"
+    status: "needs-changes"
+    overall_feasibility: "buildable-on-this-stack"
+    recommendation: "go-with-changes"
+    summary: >
+      Architecturally sound and a strong pattern-fit for this codebase. The
+      lib/weather/* server-only family is the right home for external HTTP (it
+      should NOT be forced through lib/queries, which is Supabase-only by
+      convention). The lib/ai + actions {ok} + Promise.all fan-out reuse is
+      faithful to the meal-suggestions reference. Three blockers must be fixed
+      before execution, all concerning correctness/security guarantees the spec
+      asserts but does not yet pin down: (1) viewer enforcement on the AI action
+      cannot rely on RLS and must be an explicit role gate; (2) Next 16 fetch
+      data-cache semantics are mis-specified for a per-coordinate, date-scoped
+      forecast; (3) coordinate/payload validation on saveTripLocation needs to
+      be concrete. Warnings cover geocoding ambiguity, horizon math, and AI cost
+      exposure.
+    findings:
+      - severity: "blocker"
+        block: "deliverables.api / expectations.EXP-034"
+        description: >
+          The spec says checkWeatherReadiness and saveTripLocation are
+          'planner-only ... enforced server-side ... re-checks role via
+          getUserRoleForTrip', but does not make explicit that RLS does NOT
+          cover the AI action. Verified against the codebase: the only existing
+          Server Action (app/dashboard/trips/[tripId]/meals/actions.ts) performs
+          NO explicit role check — it relies entirely on RLS (getTripById
+          returns null without access). For saveTripLocation that is adequate:
+          migration 001 line 76 'Planners can update trips' makes the trips
+          UPDATE planner-only at the DB layer, so a viewer's write silently
+          no-ops. But checkWeatherReadiness only READS (forecast/packing/meals,
+          all viewer-readable) and then spends AI tokens — RLS will NOT stop a
+          viewer from triggering it. EXP-034's edge case requires this to be
+          rejected. There is currently zero precedent in the repo for an
+          explicit role gate in an action, so the implementer will likely copy
+          the meal-action pattern and ship a viewer-exploitable AI endpoint.
+        recommendation: >
+          Make checkWeatherReadiness's planner gate a hard requirement in the
+          deliverable text: call getUserRoleForTrip(supabase, tripId) and return
+          {ok:false, error:'...'} when role !== 'planner' BEFORE any forecast
+          fetch or generateWeatherNudges call. State explicitly that this gate
+          is the authorization boundary for the AI cost (RLS does not cover it).
+          For saveTripLocation, the explicit getUserRoleForTrip check is
+          defense-in-depth (RLS already enforces it) — keep it but note that the
+          DB policy is the real boundary.
+      - severity: "blocker"
+        block: "deliverables.api (lib/weather/forecast.ts) / stack.patterns / validation"
+        description: >
+          The caching design ('cached via the Next data cache (fetch revalidate
+          ~6h) keyed by coordinates') is under-specified for Next 16 / this
+          fetch shape and will likely not cache as intended. Two concrete
+          issues: (a) The forecast URL embeds the trip's date range
+          (start/end_date) as query params, so the cache key is per-coords-AND-
+          per-date-window, not 'keyed by coordinates' as written — the
+          validation criterion 'repeat dashboard loads within the window do not
+          re-hit the provider' only holds if the URL is byte-identical across
+          loads. (b) In Next 16 with the App Router, fetch is NOT cached by
+          default; opting in requires `cache: 'force-cache'` (or an explicit
+          `next: { revalidate }`), and — critically — fetch caching only applies
+          inside a cacheable render scope. This forecast fetch runs both in the
+          trip page Server Component (render scope) AND inside the
+          checkWeatherReadiness Server Action (Server Actions are uncached / run
+          dynamically), so the Action path will re-hit the provider every time
+          regardless of the revalidate hint. The spec treats one fetch helper as
+          uniformly cached across both call sites; it will not be.
+        recommendation: >
+          Pin the fetch options explicitly in the deliverable:
+          `next: { revalidate: 21600 }` (and/or `cache:'force-cache'`) on the
+          Open-Meteo call, and round/normalize the coordinates and the date
+          window into the URL deterministically (e.g. lat/lng to ~2-3 decimals,
+          ISO dates) so the cache key is stable across renders. State that the
+          Server-Component dashboard render is the cached path; in
+          checkWeatherReadiness, either reuse the same revalidate-tagged fetch
+          (accepting it may re-fetch in the Action context) or pass the already-
+          fetched DailyForecast[] from the page into the action input rather
+          than re-fetching. Add a per-feature `next: { tags: [...] }` if you want
+          the re-resolve affordance (EXP-034) to be able to bust the forecast
+          cache on coordinate change.
+      - severity: "blocker"
+        block: "deliverables.database / deliverables.api (saveTripLocation)"
+        description: >
+          Coordinate validation is described twice but never made concrete, and
+          the two layers can disagree. The migration says 'Optional CHECK
+          constraints keep latitude in [-90,90] and longitude in [-180,180]' —
+          'optional' is not actionable for an AI agent and the validation block
+          asserts the constraints WILL reject out-of-range values, so they are
+          not optional. Separately, saveTripLocation 'validates the payload' with
+          no stated rules. Without a defined contract the agent may (a) skip the
+          CHECK constraints entirely, or (b) accept NaN/Infinity/string-coerced
+          lat/lng from the client payload (the action receives client-supplied
+          coordinates, a trust boundary — mirror the migration-024 reasoning
+          about not trusting client writes).
+        recommendation: >
+          Make the CHECK constraints mandatory in 025: `CHECK (latitude IS NULL
+          OR latitude BETWEEN -90 AND 90)` and the longitude analogue. Specify
+          saveTripLocation's payload validation concretely: lat/lng are finite
+          numbers in range, label is a non-empty trimmed string with a max
+          length; reject otherwise with {ok:false}. Consider validating against
+          one of the geocode candidates the server returned rather than trusting
+          arbitrary client coordinates (closes the 'client posts any lat/lng'
+          gap).
+      - severity: "warning"
+        block: "expectations.EXP-032 / deliverables.api (geocode.ts)"
+        description: >
+          Geocoding ambiguity handling is well-described at the UX level
+          (candidates with region context) but the GeocodeResult shape and the
+          'enough context to disambiguate' contract are loose. Open-Meteo's
+          geocoding returns name + admin1/admin2 + country + latitude/longitude
+          + a feature population/elevation; two same-named lakes can share a
+          country and even admin1. The spec's GeocodeResult lists
+          'region/admin context' generically.
+        recommendation: >
+          Specify GeocodeResult fields explicitly (name, admin1, admin2,
+          country_code, country, latitude, longitude) and state the label format
+          used to disambiguate in the picker (e.g. 'Cedar Lake, Indiana, US').
+          Cap the candidate count (e.g. top 5) to bound the picker UI.
+      - severity: "warning"
+        block: "expectations.EXP-032 (beyond-horizon edge) / deliverables.api (forecast.ts)"
+        description: >
+          The horizon math is described as '~16 days out' but the rule that
+          decides beyond-horizon vs in-window is fuzzy. Open-Meteo's daily
+          forecast supports up to 16 days forward from today and (optionally)
+          past days; a trip can be partially in-window (starts day 14, ends day
+          18). The spec's forecast.ts 'returns a typed empty/horizon result when
+          the trip is outside the provider window' implies an all-or-nothing
+          decision and does not say how a straddling trip renders.
+        recommendation: >
+          Define the rule precisely: compute days-from-today for start and end;
+          render the in-window subset of days and show the beyond-horizon hint
+          for the tail. State whether the horizon check is against today (the
+          correct basis, since the provider window is relative to now) rather
+          than against trip dates in the abstract. Note that the cache
+          revalidate (~6h) means the 'days from today' boundary can drift within
+          a cached window — acceptable, but call it out.
+      - severity: "warning"
+        block: "deliverables.api (weather-nudges.ts) / boundaries"
+        description: >
+          AI token/cost exposure is only partially bounded. The reference
+          meal-suggestions caps the recipe library to 50 and uses sonnet-4.6.
+          weather-nudges feeds 'the packing list (names + categories + whether
+          essential)' and 'the meal plan' with no size cap — a large packing
+          list (templates can apply dozens of items) plus a full meal plan can
+          inflate the prompt. There is also no stated model choice or output
+          cap (number of nudges).
+        recommendation: >
+          Cap the packing/meal inputs (e.g. slice to N items, summarize by
+          category counts where possible), pin the model string (match the repo
+          convention 'anthropic/claude-sonnet-4.6'), and bound the WeatherNudge
+          array length in the Zod schema (e.g. .max(6)). Combined with the
+          blocker-1 planner gate, this bounds cost.
+      - severity: "suggestion"
+        block: "expectations.EXP-034 (past-trip rule) / deliverables.ui"
+        description: >
+          'Do not show weather for completed or past trips' uses two different
+          notions of 'past'. The page already computes isPast via
+          `trip.end_date < todayYMD()` (page.tsx line 60) AND has a separate
+          `trip.status === 'completed'`. The spec should reuse the existing
+          isPast + status check verbatim so the weather-card suppression lines up
+          exactly with the rest of the dashboard's past/completed logic.
+        recommendation: >
+          State the guard as: render WeatherCard only when NOT isPast AND status
+          !== 'completed', reusing the page's existing todayYMD()/isPast
+          computation rather than introducing a parallel date check.
+      - severity: "suggestion"
+        block: "deliverables.types"
+        description: >
+          The Trip type extension (latitude, longitude, location_label nullable)
+          is noted under deliverables.types but the canonical Trip interface
+          lives in lib/types/trip.ts (verified). Good. Minor: the spec adds
+          weather_code to DailyForecast but doesn't specify the icon mapping
+          (WMO weather codes -> emoji/icon) the WeatherCard needs.
+        recommendation: >
+          Add a small WMO-code-to-icon mapping helper to the deliverables (a
+          pure function in lib/weather/ or a constant map) so the implementer
+          doesn't invent ad-hoc icon logic in the component. Keep icons as
+          camp-* token-styled, per the no-hand-rolled-hex rule.
+      - severity: "suggestion"
+        block: "boundaries / external API reliability"
+        description: >
+          First external-HTTP integration in the codebase. The spec correctly
+          degrades on provider error, but says nothing about request timeout or
+          retry. A hung Open-Meteo request would block the trip page's
+          Promise.all fan-out and delay the whole dashboard.
+        recommendation: >
+          Add a fetch timeout (AbortSignal.timeout, e.g. 4-5s) to both weather
+          fetches and treat timeout as the 'unavailable' degraded state, so a
+          slow provider cannot stall the dashboard render. No retry needed for
+          v1 (the card just shows unavailable).
+    completeness_checklist:
+      context_stack: "pass"
+      context_patterns: "pass"
+      context_conventions: "pass (patterns array carries conventions)"
+      context_auth: "pass (Google OAuth + RLS + planner/viewer via getUserRoleForTrip stated in dependencies/stack)"
+      expectations_linked: "pass (EXP-032/033/034 -> INT-010)"
+      expectations_validation: "pass"
+      expectations_edge_cases: "pass (>=2 each; 4 apiece)"
+      boundaries_present: "pass (strong out_of_scope list)"
+      deliverables_present: "pass (db + types + ui + api; ~within 1-3 logical units)"
+      validation_automated_and_human: "pass (CHECK-constraint/cache/migration are automatable; UX/AI-quality are human-review)"
+      peer_reviewed: "this review satisfies the peer-review gate"
+    go_no_go: >
+      GO WITH CHANGES. Resolve the three blockers (explicit planner gate on the
+      AI action; concrete Next 16 fetch-cache options + stable cache key and the
+      Server-Action re-fetch caveat; mandatory CHECK constraints + concrete
+      coordinate/payload validation) and the spec is ready to execute. Warnings
+      should be folded in during implementation but do not block. No re-work of
+      the overall architecture is warranted — the design fits this codebase well.
+    resolution:
+      date: "2026-05-30"
+      status: "all-findings-folded-in"
+      summary: >
+        All 3 blockers and all 6 warnings/suggestions were incorporated into the
+        spec body the same day; status returned to draft (ready for planning).
+      changes:
+        - "BLOCKER-1 (viewer/AI gate): deliverables.api actions.ts now mandates a HARD getUserRoleForTrip planner gate FIRST in checkWeatherReadiness, explicitly noting RLS does not cover AI-token spend; geocodeDestination also planner-gated; saveTripLocation keeps the role check as defense-in-depth over the trips UPDATE RLS boundary."
+        - "BLOCKER-2 (Next 16 fetch cache): forecast.ts now specifies explicit next:{revalidate:21600,tags:[trip-forecast:<tripId>]}, a deterministic rounded-coords+ISO-dates key, the Server-Action-is-uncached caveat (checkWeatherReadiness RECEIVES forecast as input, does not re-fetch), and revalidateTag on re-resolve; stack.patterns + in_scope updated to match."
+        - "BLOCKER-3 (coord/payload validation): migration 025 CHECK constraints made MANDATORY (lat/lng range + label length); saveTripLocation payload contract made concrete (finite in-range numbers, bounded non-empty label, prefer validating against returned geocode candidates)."
+        - "WARN (geocode shape): GeocodeResult fields made explicit (name/admin1/admin2/country_code/country/lat/lng) with a defined label format; candidates capped to top 5."
+        - "WARN (horizon math): forecast.ts defines days-from-today computation, in-window-subset rendering for straddling trips, and the cache-drift note."
+        - "WARN (AI cost): weather-nudges.ts caps packing/meal inputs, pins model anthropic/claude-sonnet-4.6, and bounds the nudge array with .max(6)."
+        - "SUGGESTION (past-trip guard): WeatherCard reuses the page's existing isPast + status!=='completed' guard verbatim."
+        - "SUGGESTION (WMO icons): added lib/weather/wmo-icons.ts mapping helper deliverable."
+        - "SUGGESTION (timeout): AbortSignal.timeout (~4-5s) added to both geocode.ts and forecast.ts fetches, degrading to the unavailable state."
