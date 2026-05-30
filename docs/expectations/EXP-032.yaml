@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-032"
+  intention: "INT-010"
+  description: "Planners can resolve a trip's free-text destination to a geographic location and see a daily weather forecast for the trip's dates on the trip dashboard."
+  validation_criteria: "On a trip whose destination has not yet been resolved, a planner sees a 'Set location' prompt. Triggering it geocodes the destination and presents candidate matches; selecting one stores coordinates plus a human-readable location label. The dashboard then shows a per-day forecast (high/low temperature, precipitation probability, wind) for each trip day that falls within the forecast horizon."
+  edge_cases:
+    - "Destination is ambiguous (e.g., several 'Cedar Lake' results); the planner is shown multiple candidates with enough context (region/country) to pick the right one, rather than the system silently guessing one."
+    - "Destination cannot be geocoded (typo, fictional, or too vague); the system shows a clear 'couldn't find that place' message and the trip remains fully usable without weather rather than erroring the dashboard."
+    - "Trip start date is more than ~16 days out (beyond the provider's forecast horizon); the card shows the resolved location label and a 'forecast available closer to your trip' state instead of an empty or broken forecast."
+    - "The weather provider is unreachable when the dashboard loads; the weather card degrades to a 'weather unavailable' state and the rest of the trip dashboard renders normally."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"

@@ -1,0 +1,25 @@
+intention:
+  id: "INT-010"
+  product: "PROD-001"
+  statement: >
+    Users can see a weather forecast for their trip's location and dates, and
+    request AI-powered prep suggestions that flag gaps between the expected
+    conditions and what they've actually packed and planned to eat — so weather
+    surprises don't derail the trip.
+  rationale: >
+    Packing and meal plans today adapt to season, which is only a coarse proxy
+    for the weather. A cold front, a rainstorm, or a high-wind night can leave
+    campers under-prepared even though their packing list reads as "complete."
+    Surfacing the real forecast for the campsite and letting AI reason over it
+    against the actual plan closes the gap between "looks ready" and "ready for
+    the conditions." The stored location also becomes reusable groundwork for
+    future activity/trail planning.
+  priority: "medium"
+  dependencies:
+    - "INT-001"
+    - "INT-002"
+    - "INT-003"
+  owner: "Jason Robey"
+  status: "draft"
+  planned_in:
+    - "SPEC-010"
