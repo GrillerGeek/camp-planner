@@ -1,0 +1,215 @@
+spec:
+  id: "SPEC-010"
+  name: "Weather-Aware Trip Prep"
+  product: "PROD-001"
+  status: "draft"
+  owner: "Jason Robey"
+  created: "2026-05-30"
+
+  context:
+    description: >
+      Adds weather awareness to trip planning. A planner resolves a trip's
+      free-text destination to geographic coordinates (one-time, with a
+      confirmation step for ambiguous places), after which the trip dashboard
+      shows a daily forecast for the trip dates. On demand, the planner can run
+      an AI "weather readiness" check that reasons over the forecast alongside
+      the actual packing list and meal plan and returns advisory nudges about
+      gaps (e.g., a rain day with no rain layer packed, a high-wind day with an
+      open-flame meal). Forecast display is cheap and automatic; AI nudges are
+      on-demand only (the "hybrid" trigger model). The feature is additive and
+      degrades gracefully when location is unresolved, the trip is beyond the
+      forecast horizon, or the weather provider is unavailable.
+    product: "PROD-001"
+    intentions:
+      - id: "INT-010"
+        statement: >
+          Users can see a weather forecast for their trip's location and dates,
+          and request AI-powered prep suggestions that flag gaps between the
+          expected conditions and what they've actually packed and planned to
+          eat — so weather surprises don't derail the trip.
+    dependencies:
+      - spec: "SPEC-001"
+        reason: "Trip data model (destination, dates), Google OAuth, RLS, and the planner/viewer role check (getUserRoleForTrip)"
+      - spec: "SPEC-002"
+        reason: "Packing list items — the AI readiness check reasons over what's packed"
+      - spec: "SPEC-003"
+        reason: "Meal plan — the AI readiness check reasons over planned meals; reuses the lib/ai meal-suggestions pattern (generateText + Output.object + Zod, {ok} server-action wrapper)"
+    stack:
+      runtime: "Next.js 16 (App Router), TypeScript (strict)"
+      styling: "Tailwind CSS v4, camp-* theme tokens (no hand-rolled hex)"
+      database: "Supabase PostgreSQL with Row Level Security"
+      ai: "Vercel AI Gateway via the `ai` SDK with plain provider/model strings"
+      external_data: "Open-Meteo (free, no API key) — geocoding endpoint and 16-day daily forecast endpoint"
+      hosting: "Vercel"
+      patterns:
+        - "Server components with client islands"
+        - "Data access via lib/queries/<domain>.ts; external HTTP via server-only lib/weather/* modules"
+        - "AI features in server-only lib/ai/<feature>.ts invoked from co-located actions.ts Server Actions wrapped in an {ok} discriminated union"
+        - "Forecast cached via the Next data cache (fetch revalidate), not a DB table"
+        - "Mobile-first responsive design (PWA target)"
+
+  expectations:
+    - id: "EXP-032"
+      intention: "INT-010"
+      description: >
+        Planners can resolve a trip's free-text destination to a geographic
+        location and see a daily weather forecast for the trip's dates on the
+        trip dashboard.
+      validation_criteria: >
+        On a trip whose destination has not yet been resolved, a planner sees a
+        'Set location' prompt. Triggering it geocodes the destination and
+        presents candidate matches; selecting one stores coordinates plus a
+        human-readable location label. The dashboard then shows a per-day
+        forecast (high/low temperature, precipitation probability, wind) for
+        each trip day that falls within the forecast horizon.
+      edge_cases:
+        - "Destination is ambiguous (e.g., several 'Cedar Lake' results); the planner is shown multiple candidates with enough context (region/country) to pick the right one, rather than the system silently guessing one."
+        - "Destination cannot be geocoded (typo, fictional, or too vague); the system shows a clear 'couldn't find that place' message and the trip remains fully usable without weather rather than erroring the dashboard."
+        - "Trip start date is more than ~16 days out (beyond the provider's forecast horizon); the card shows the resolved location label and a 'forecast available closer to your trip' state instead of an empty or broken forecast."
+        - "The weather provider is unreachable when the dashboard loads; the weather card degrades to a 'weather unavailable' state and the rest of the trip dashboard renders normally."
+
+    - id: "EXP-033"
+      intention: "INT-010"
+      description: >
+        Planners can request AI-powered prep nudges that compare the forecast
+        against the trip's packing list and meal plan and surface specific gaps
+        or risks.
+      validation_criteria: >
+        With a resolved location and an in-window forecast, a planner clicks
+        'Check weather readiness'. The system returns advisory suggestions that
+        reference both the actual conditions and the actual plan — e.g.,
+        flagging a forecast rain day against a packing list with no rain layer,
+        or a high-wind day against an open-flame meal. Suggestions are advisory
+        text only and do not modify the packing list or meal plan.
+      edge_cases:
+        - "The packing list and meal plan already cover the forecast conditions well; the system returns a reassuring 'you're well prepared' result rather than inventing problems."
+        - "The packing list or meal plan is empty; nudges still run against the forecast and suggest baseline essentials for the conditions rather than erroring."
+        - "The AI gateway call fails or times out; the planner sees a clear inline error and can retry, with no partial or corrupted suggestions rendered."
+        - "The forecast spans changing conditions across multiple days (warm start, cold and wet finish); nudges reflect the range rather than only the first or worst day."
+
+    - id: "EXP-034"
+      intention: "INT-010"
+      description: >
+        Weather display and prep nudges respect trip roles and trip state —
+        viewers get read-only forecast access, and weather is suppressed where
+        it has no value.
+      validation_criteria: >
+        A viewer-role member sees the forecast for a resolved trip but has no
+        'Set location' or 'Check weather readiness' controls, and direct
+        invocation of the location-write or nudge server actions as a viewer is
+        rejected server-side. Completed or past trips do not render the weather
+        card.
+      edge_cases:
+        - "A viewer calls the saveTripLocation or checkWeatherReadiness server action directly (bypassing the hidden UI); the action re-checks role server-side via getUserRoleForTrip and rejects with an access error rather than relying on the UI to hide controls."
+        - "A trip transitions from upcoming to past while a planner has the dashboard open; on the next render the weather card disappears (or stops offering AI), consistent with the past-trip rule."
+        - "Location was resolved by one planner; a second planner on the same trip sees the stored location and forecast without having to re-resolve it."
+        - "A planner changes the trip's destination after a location was resolved; the system makes clear the stored coordinates may be stale and allows re-resolving, rather than silently keeping the old location forever with no recourse."
+
+  boundaries:
+    in_scope:
+      - "Migration 025: add nullable latitude (double precision), longitude (double precision), and location_label (text) columns to the trips table; additive and backward-compatible (existing trips read null = unresolved)"
+      - "lib/weather/geocode.ts (server-only): Open-Meteo geocoding — destination text to candidate matches with region context"
+      - "lib/weather/forecast.ts (server-only): Open-Meteo daily forecast by coordinates, scoped to trip dates, cached via the Next data cache (revalidate ~6h)"
+      - "lib/types/weather.ts: DailyForecast, GeocodeResult, WeatherNudge types"
+      - "lib/queries/trips.ts: updateTripLocation(client, tripId, {lat, lng, label})"
+      - "lib/ai/weather-nudges.ts (server-only): generateText + Output.object + Zod, reasons over forecast + packing items + meals"
+      - "app/dashboard/trips/[tripId]/weather/actions.ts: geocodeDestination, saveTripLocation (planner-only), checkWeatherReadiness (planner-only) — each re-fetches the trip / role server-side and returns an {ok} discriminated union"
+      - "app/dashboard/trips/[tripId]/components/WeatherCard.tsx: client island on the trip dashboard with states for unresolved / candidate-pick / in-window forecast + AI button / beyond-horizon / unavailable"
+      - "Server-side forecast fetch added to the trip detail page Promise.all fan-out, guarded on coords present and trip not past"
+    out_of_scope:
+      - "Do not add a weather cache table or a nudges table — forecast uses the Next data cache; nudges are ephemeral (rendered, never persisted), mirroring meal suggestions"
+      - "Do not auto-add suggested items to the packing list or modify the meal plan — v1 nudges are advisory text only"
+      - "Do not make the weather card interactive for viewers — viewers see forecast read-only; set-location and AI actions are planner-only and enforced server-side"
+      - "Do not run AI nudges automatically — they are on-demand via button only (hybrid trigger)"
+      - "Do not implement a climate-normals / historical-averages fallback for far-future trips — show the beyond-horizon state instead"
+      - "Do not implement hourly forecasts — daily granularity only"
+      - "Do not implement weather-triggered push notifications (a candidate for a later spec building on the SPEC-008b PWA push groundwork)"
+      - "Do not show weather for completed or past trips"
+      - "Do not add a new weather API secret — Open-Meteo requires no API key"
+
+  deliverables:
+    database:
+      - name: "025_trips_weather_location.sql"
+        type: "supabase_migration"
+        description: >
+          Adds three nullable columns to public.trips: latitude (double
+          precision), longitude (double precision), location_label (text,
+          human-readable resolved place). Additive and backward-compatible; no
+          RLS change needed (columns inherit the existing trips row policies).
+          Existing rows read null, which the UI treats as "location not yet
+          resolved." Optional CHECK constraints keep latitude in [-90, 90] and
+          longitude in [-180, 180].
+
+    types:
+      - name: "lib/types/weather.ts"
+        description: >
+          DailyForecast (date, temp_high, temp_low, precip_probability,
+          wind_speed, wind_gust, weather_code), GeocodeResult (label, latitude,
+          longitude, region/admin context), WeatherNudge (title, detail,
+          severity: info | caution | warning, and which day(s) it relates to).
+          Trip type in lib/types/trip.ts extended with latitude, longitude,
+          location_label (all nullable) to mirror the migration.
+
+    ui:
+      - name: "WeatherCard (planner-interactive client island)"
+        description: >
+          Rendered on the trip detail dashboard for non-past trips. States:
+          (1) Unresolved — 'Set location for weather' CTA that runs
+          geocodeDestination and shows candidate matches to pick from;
+          (2) In-window — a per-day forecast strip (weather icon, high/low,
+          precip %, wind) for the trip days, plus a 'Check weather readiness'
+          button that runs the AI action and renders the returned nudges
+          inline with severity styling using camp-* tokens;
+          (3) Beyond-horizon — resolved location label + 'forecast available
+          closer to your trip';
+          (4) Unavailable — 'weather unavailable right now' degraded state.
+          For viewer-role members, the forecast strip renders read-only with no
+          set-location or readiness controls. A subtle affordance lets a planner
+          re-resolve the location if the destination changed.
+
+    api:
+      - name: "lib/weather/geocode.ts (server-only)"
+        description: >
+          Calls the Open-Meteo geocoding endpoint with the trip's destination
+          string; returns an array of GeocodeResult candidates (label,
+          coordinates, region context). Returns an empty array on no match.
+      - name: "lib/weather/forecast.ts (server-only)"
+        description: >
+          Calls the Open-Meteo forecast endpoint for given coordinates,
+          requesting daily temp max/min, precipitation probability, wind speed,
+          wind gusts, and weather code. Filters to the trip's date range, maps
+          to DailyForecast[]. Uses fetch with Next data-cache revalidation
+          (~6h) keyed by coordinates. Returns a typed empty/horizon result when
+          the trip is outside the provider window; throws on provider error so
+          callers can render the degraded state.
+      - name: "lib/ai/weather-nudges.ts (server-only)"
+        description: >
+          generateText + Output.object over a Zod schema producing an array of
+          WeatherNudge. Inputs: the DailyForecast[] for the trip, a compact
+          view of the packing list (names + categories + whether essential),
+          the meal plan (meal types + names + cook style if available), and
+          trip context (destination, dates, trip_type). Prompted to return
+          advisory, specific, plan-grounded suggestions (and an explicit
+          'well prepared' result when no gaps), never to fabricate items not
+          implied by the conditions.
+      - name: "app/dashboard/trips/[tripId]/weather/actions.ts (Server Actions)"
+        description: >
+          geocodeDestination(tripId) -> {ok, candidates} (planner-only):
+          re-fetches the trip, calls lib/weather/geocode.
+          saveTripLocation(tripId, {lat, lng, label}) -> {ok} (planner-only):
+          re-checks role via getUserRoleForTrip, validates the payload, calls
+          updateTripLocation, revalidates the trip path.
+          checkWeatherReadiness(tripId) -> {ok, nudges} (planner-only):
+          re-fetches the trip + role, fetches forecast + packing + meals
+          server-side, calls generateWeatherNudges, returns nudges. All wrap
+          failures in {ok: false, error} and log server-side (meal-action
+          pattern).
+
+  validation:
+    - expectation: "EXP-032"
+      criteria: "On an existing trip with no stored coordinates, confirm the WeatherCard shows 'Set location'. Trigger it; confirm geocoding an ambiguous destination shows multiple candidates with region context; pick one and confirm coordinates + label persist and the per-day forecast renders aligned to the trip dates. Set a trip start date >16 days out and confirm the beyond-horizon state. Simulate provider failure and confirm the card degrades while the rest of the dashboard renders. Geocode an unresolvable destination and confirm the 'couldn't find that place' message."
+    - expectation: "EXP-033"
+      criteria: "With a resolved in-window trip, click 'Check weather readiness'. Confirm nudges reference the actual forecast and actual plan (e.g., a seeded rain day flags a packing list lacking a rain layer). Confirm an already-well-covered plan yields a reassuring result, an empty plan yields baseline essentials, multi-day changing conditions are reflected across days, and an AI failure renders a clear retryable inline error with nothing persisted."
+    - expectation: "EXP-034"
+      criteria: "As a viewer, confirm the forecast renders read-only with no set-location or readiness controls. Invoke saveTripLocation and checkWeatherReadiness directly as a viewer and confirm both are rejected server-side. Confirm a completed/past trip renders no weather card. Confirm a second planner sees the location resolved by the first without re-resolving. Change a trip's destination after resolution and confirm the re-resolve affordance is available."
+    - criteria: "Confirm no new environment secret is required (Open-Meteo keyless). Confirm forecast responses are cached (repeat dashboard loads within the window do not re-hit the provider). Confirm latitude/longitude CHECK constraints reject out-of-range values. Confirm the migration is additive and existing trips load normally with null location."

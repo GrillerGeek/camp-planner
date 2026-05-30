@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-033"
+  intention: "INT-010"
+  description: "Planners can request AI-powered prep nudges that compare the forecast against the trip's packing list and meal plan and surface specific gaps or risks."
+  validation_criteria: "With a resolved location and an in-window forecast, a planner clicks 'Check weather readiness'. The system returns advisory suggestions that reference both the actual conditions and the actual plan — e.g., flagging a forecast rain day against a packing list with no rain layer, or a high-wind day against an open-flame meal. Suggestions are advisory text only and do not modify the packing list or meal plan."
+  edge_cases:
+    - "The packing list and meal plan already cover the forecast conditions well; the system returns a reassuring 'you're well prepared' result rather than inventing problems."
+    - "The packing list or meal plan is empty; nudges still run against the forecast and suggest baseline essentials for the conditions rather than erroring."
+    - "The AI gateway call fails or times out; the planner sees a clear inline error and can retry, with no partial or corrupted suggestions rendered."
+    - "The forecast spans changing conditions across multiple days (warm start, cold and wet finish); nudges reflect the range rather than only the first or worst day."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"

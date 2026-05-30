@@ -1,0 +1,13 @@
+expectation:
+  id: "EXP-034"
+  intention: "INT-010"
+  description: "Weather display and prep nudges respect trip roles and trip state — viewers get read-only forecast access, and weather is suppressed where it has no value."
+  validation_criteria: "A viewer-role member sees the forecast for a resolved trip but has no 'Set location' or 'Check weather readiness' controls, and direct invocation of the location-write or nudge server actions as a viewer is rejected server-side. Completed or past trips do not render the weather card."
+  edge_cases:
+    - "A viewer calls the saveTripLocation or checkWeatherReadiness server action directly (bypassing the hidden UI); the action re-checks role server-side via getUserRoleForTrip and rejects with an access error rather than relying on the UI to hide controls."
+    - "A trip transitions from upcoming to past while a planner has the dashboard open; on the next render the weather card disappears (or stops offering AI), consistent with the past-trip rule."
+    - "Location was resolved by one planner; a second planner on the same trip sees the stored location and forecast without having to re-resolve it."
+    - "A planner changes the trip's destination after a location was resolved; the system makes clear the stored coordinates may be stale and allows re-resolving, rather than silently keeping the old location forever with no recourse."
+  complexity: "medium"
+  owner: "Jason Robey"
+  status: "draft"
