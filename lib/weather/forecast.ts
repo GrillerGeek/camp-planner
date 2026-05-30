@@ -2,7 +2,11 @@ import "server-only";
 import type { DailyForecast, ForecastResult } from "@/lib/types/weather";
 
 const FORECAST_ENDPOINT = "https://api.open-meteo.com/v1/forecast";
-const HORIZON_DAYS = 16; // Open-Meteo daily forecast window from today
+// Open-Meteo's daily forecast covers today (offset 0) through today+15 —
+// 16 days inclusive. HORIZON_DAYS is the LAST available offset (15), so a
+// trip ending exactly that far out reads as fully in-window and one ending
+// later correctly flags truncated.
+const HORIZON_DAYS = 15;
 
 /** Add `n` days to a YYYY-MM-DD string, returning YYYY-MM-DD.
  *  Parsed as a UTC date to avoid DST/local-offset drift in the arithmetic. */
