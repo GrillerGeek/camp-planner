@@ -77,7 +77,7 @@ export async function saveTripLocation(
       label: trimmedLabel,
     });
     revalidatePath(`/dashboard/trips/${tripId}`);
-    revalidateTag(`trip-forecast:${tripId}`, "default"); // drop any stale cached forecast
+    revalidateTag(`trip-forecast:${tripId}`, "max"); // drop any stale cached forecast
     return { ok: true };
   } catch (err) {
     console.error("[weather:saveTripLocation]", err);
