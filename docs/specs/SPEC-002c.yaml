@@ -94,8 +94,16 @@ spec:
         PackingTemplate.trip_types is settable but Trip has no trip_type
         field — the filter does nothing. Audit flagged as P0 but the fix
         touches Trip schema and is broader than this batch.
-      status: "deferred"
+      status: "resolved"
       defer_to: "SPEC-004b.2"
+      resolved_by: "SPEC-004b.2"
+      resolved_on: "2026-05-25"
+      resolution: >
+        Delivered as part of SPEC-004b.2. Migration 023 added trips.trip_type
+        (nullable, CHECK-constrained to the TRIP_TYPES enum); createTrip/updateTrip
+        wire it through, TripForm gained a chip selector, and the packing apply
+        modal now ranks templates by season+trip_type. The original "filter does
+        nothing" gap is closed.
 
   deliverables:
     - "supabase/migrations/011_packing_item_essentials.sql"
