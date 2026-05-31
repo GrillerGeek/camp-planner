@@ -102,6 +102,29 @@ export async function updateTrip(
   return data;
 }
 
+/** SPEC-010: persist a resolved campsite location on a trip. Coordinate
+ *  range is enforced by migration 025 CHECK constraints at the DB layer;
+ *  the caller (saveTripLocation action) validates the payload shape first. */
+export async function updateTripLocation(
+  supabase: SupabaseClient,
+  tripId: string,
+  loc: { latitude: number; longitude: number; label: string }
+): Promise<Trip> {
+  const { data, error } = await supabase
+    .from("trips")
+    .update({
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+      location_label: loc.label.trim(),
+    })
+    .eq("id", tripId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
 export async function deleteTrip(
   supabase: SupabaseClient,
   tripId: string

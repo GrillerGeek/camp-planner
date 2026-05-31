@@ -8,6 +8,9 @@ import Link from "next/link";
 import { TripHeader } from "./components/TripHeader";
 import { ReadinessCard } from "./components/ReadinessCard";
 import { CompleteTripButton } from "./components/CompleteTripButton";
+import { WeatherCard } from "./components/WeatherCard";
+import { getTripForecast } from "@/lib/weather/forecast";
+import type { ForecastResult } from "@/lib/types/weather";
 import { TripEndedBanner } from "./components/TripEndedBanner";
 import { CachePrefetcher } from "@/app/pwa/CachePrefetcher";
 import { CacheFreshness } from "@/app/pwa/CacheFreshness";
@@ -61,6 +64,21 @@ export default async function TripDetailPage({
   const showEndedBanner =
     isPast && trip.status !== "completed" && role === "planner";
 
+  // SPEC-010: only fetch weather for upcoming, non-completed, located trips.
+  const showWeather =
+    !isPast && trip.status !== "completed" && trip.latitude != null && trip.longitude != null;
+  let forecast: ForecastResult | null = null;
+  if (showWeather) {
+    forecast = await getTripForecast({
+      tripId,
+      latitude: trip.latitude as number,
+      longitude: trip.longitude as number,
+      startDate: trip.start_date,
+      endDate: trip.end_date,
+      today: todayYMD(),
+    });
+  }
+
   return (
     <div>
       <CachePrefetcher tripId={tripId} />
@@ -75,6 +93,16 @@ export default async function TripDetailPage({
         <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
           <p className="text-camp-earth text-sm">{trip.notes}</p>
         </div>
+      )}
+
+      {!isPast && trip.status !== "completed" && (
+        <WeatherCard
+          tripId={tripId}
+          role={role}
+          locationLabel={trip.location_label}
+          hasCoords={trip.latitude != null && trip.longitude != null}
+          forecast={forecast}
+        />
       )}
 
       <h2 className="text-lg font-semibold text-white mb-4">Trip Readiness</h2>
