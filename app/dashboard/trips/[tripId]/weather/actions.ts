@@ -40,11 +40,17 @@ export async function geocodeDestination(
   const trip = await getTripById(supabase, tripId);
   if (!trip) return { ok: false, error: "Trip not found or no access." };
 
-  const candidates = await geocodePlace(trip.destination);
-  if (candidates.length === 0) {
+  const outcome = await geocodePlace(trip.destination);
+  if (outcome.status === "unavailable") {
+    return {
+      ok: false,
+      error: "Weather location lookup is temporarily unavailable. Please try again in a moment.",
+    };
+  }
+  if (outcome.status === "not_found") {
     return { ok: false, error: "Couldn't find that place — try refining the destination." };
   }
-  return { ok: true, candidates };
+  return { ok: true, candidates: outcome.results };
 }
 
 export async function saveTripLocation(
