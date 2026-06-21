@@ -23,6 +23,14 @@ export interface GeocodeResult {
   longitude: number;
 }
 
+/** Discriminated result of a geocoding lookup, mirroring ForecastResult.
+ *  `not_found` = provider returned zero matches (refine the destination);
+ *  `unavailable` = network error, timeout, or HTTP failure (transient — retry). */
+export type GeocodeOutcome =
+  | { status: "ok"; results: GeocodeResult[] }
+  | { status: "not_found" }
+  | { status: "unavailable" };
+
 export type NudgeSeverity = "info" | "caution" | "warning";
 
 /** One advisory weather-readiness suggestion. Advisory text only — never
