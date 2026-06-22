@@ -152,7 +152,7 @@ export function RecipeForm({ recipe }: RecipeFormProps) {
           onChange={(e) =>
             setFormData((prev) => ({ ...prev, name: e.target.value }))
           }
-          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white placeholder:text-camp-earth/50 focus:outline-none focus:ring-2 focus:ring-camp-forest/50 focus:border-camp-forest"
+          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white placeholder:text-camp-earth/70 focus:outline-none focus:ring-2 focus:ring-camp-forest/50 focus:border-camp-forest"
           placeholder="e.g., Campfire Chili"
           required
         />
@@ -168,7 +168,7 @@ export function RecipeForm({ recipe }: RecipeFormProps) {
           onChange={(e) =>
             setFormData((prev) => ({ ...prev, description: e.target.value }))
           }
-          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white placeholder:text-camp-earth/50 focus:outline-none focus:ring-2 focus:ring-camp-forest/50 focus:border-camp-forest min-h-[80px]"
+          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white placeholder:text-camp-earth/70 focus:outline-none focus:ring-2 focus:ring-camp-forest/50 focus:border-camp-forest min-h-[80px]"
           placeholder="A brief description of the recipe..."
           rows={2}
         />
@@ -188,7 +188,7 @@ export function RecipeForm({ recipe }: RecipeFormProps) {
                 onChange={(e) =>
                   updateIngredient(index, "name", e.target.value)
                 }
-                className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-camp-earth/50 focus:outline-none focus:ring-2 focus:ring-camp-forest/50"
+                className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-camp-earth/70 focus:outline-none focus:ring-2 focus:ring-camp-forest/50"
                 placeholder="Ingredient name"
               />
               <input
@@ -197,7 +197,7 @@ export function RecipeForm({ recipe }: RecipeFormProps) {
                 onChange={(e) =>
                   updateIngredient(index, "quantity", e.target.value)
                 }
-                className="w-20 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-camp-earth/50 focus:outline-none focus:ring-2 focus:ring-camp-forest/50"
+                className="w-20 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-camp-earth/70 focus:outline-none focus:ring-2 focus:ring-camp-forest/50"
                 placeholder="Qty"
               />
               <input
@@ -206,13 +206,13 @@ export function RecipeForm({ recipe }: RecipeFormProps) {
                 onChange={(e) =>
                   updateIngredient(index, "unit", e.target.value)
                 }
-                className="w-24 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-camp-earth/50 focus:outline-none focus:ring-2 focus:ring-camp-forest/50"
+                className="w-24 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-camp-earth/70 focus:outline-none focus:ring-2 focus:ring-camp-forest/50"
                 placeholder="Unit"
               />
               <button
                 type="button"
                 onClick={() => removeIngredient(index)}
-                className="text-camp-earth/60 hover:text-red-400 transition-colors p-2"
+                className="text-camp-earth/70 hover:text-red-400 transition-colors p-2"
                 title="Remove ingredient"
               >
                 <svg
@@ -264,7 +264,7 @@ export function RecipeForm({ recipe }: RecipeFormProps) {
           onChange={(e) =>
             setFormData((prev) => ({ ...prev, instructions: e.target.value }))
           }
-          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white placeholder:text-camp-earth/50 focus:outline-none focus:ring-2 focus:ring-camp-forest/50 focus:border-camp-forest min-h-[120px]"
+          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white placeholder:text-camp-earth/70 focus:outline-none focus:ring-2 focus:ring-camp-forest/50 focus:border-camp-forest min-h-[120px]"
           placeholder="Step-by-step instructions..."
           rows={4}
         />
@@ -305,7 +305,7 @@ export function RecipeForm({ recipe }: RecipeFormProps) {
                   : null,
               }))
             }
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white placeholder:text-camp-earth/50 focus:outline-none focus:ring-2 focus:ring-camp-forest/50"
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white placeholder:text-camp-earth/70 focus:outline-none focus:ring-2 focus:ring-camp-forest/50"
             placeholder="--"
           />
         </div>
@@ -325,7 +325,7 @@ export function RecipeForm({ recipe }: RecipeFormProps) {
                   : null,
               }))
             }
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white placeholder:text-camp-earth/50 focus:outline-none focus:ring-2 focus:ring-camp-forest/50"
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white placeholder:text-camp-earth/70 focus:outline-none focus:ring-2 focus:ring-camp-forest/50"
             placeholder="--"
           />
         </div>

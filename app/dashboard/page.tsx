@@ -36,18 +36,18 @@ function Section({ title, description, tone = "default", trips, baseIndex }: Sec
     tone === "warning"
       ? "text-camp-fire"
       : tone === "muted"
-      ? "text-camp-earth/70"
+      ? "text-camp-earth/80"
       : "text-white";
   return (
     <section className="mb-8 last:mb-0">
       <div className="flex items-baseline gap-3 mb-3">
         <h2 className={`text-lg font-semibold ${titleColor}`}>{title}</h2>
-        <span className="text-camp-earth/50 text-sm">
+        <span className="text-camp-earth/70 text-sm">
           {trips.length}
         </span>
       </div>
       {description && (
-        <p className="text-camp-earth/60 text-sm mb-3">{description}</p>
+        <p className="text-camp-earth/70 text-sm mb-3">{description}</p>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {trips.map((trip, i) => (

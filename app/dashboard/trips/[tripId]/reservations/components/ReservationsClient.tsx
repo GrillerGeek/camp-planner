@@ -272,7 +272,7 @@ export function ReservationsClient({
                 <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1">
                   {reservation.check_in_date && (
                     <div className="text-sm">
-                      <span className="text-camp-earth/60">Check-in: </span>
+                      <span className="text-camp-earth/70">Check-in: </span>
                       <span className="text-white">
                         {formatDate(reservation.check_in_date)}
                         {reservation.check_in_time &&
@@ -282,7 +282,7 @@ export function ReservationsClient({
                   )}
                   {reservation.check_out_date && (
                     <div className="text-sm">
-                      <span className="text-camp-earth/60">Check-out: </span>
+                      <span className="text-camp-earth/70">Check-out: </span>
                       <span className="text-white">
                         {formatDate(reservation.check_out_date)}
                         {reservation.check_out_time &&
@@ -296,7 +296,7 @@ export function ReservationsClient({
               {/* Contact info */}
               {reservation.contact_info && (
                 <div className="mt-2 text-sm">
-                  <span className="text-camp-earth/60">Contact: </span>
+                  <span className="text-camp-earth/70">Contact: </span>
                   <span className="text-camp-earth">
                     {reservation.contact_info}
                   </span>

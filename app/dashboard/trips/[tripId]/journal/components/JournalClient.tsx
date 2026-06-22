@@ -252,7 +252,7 @@ export function JournalClient({
 
                 <div className="bg-white/5 border border-white/10 rounded-xl p-5">
                   <div className="flex items-start justify-between gap-3 mb-3">
-                    <span className="text-camp-earth/60 text-xs">
+                    <span className="text-camp-earth/70 text-xs">
                       {formatDateTime(entry.created_at)}
                     </span>
                     {isPlanner && (
@@ -436,7 +436,7 @@ export function JournalClient({
                   }
                   className="hidden"
                 />
-                <div className="text-camp-earth/40 text-xs mt-2">
+                <div className="text-camp-earth/60 text-xs mt-2">
                   JPEG, PNG, WebP, HEIC, GIF · 10 MB max
                 </div>
               </div>

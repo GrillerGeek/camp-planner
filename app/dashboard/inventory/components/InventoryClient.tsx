@@ -502,7 +502,7 @@ export function InventoryClient({ initialInventory }: InventoryClientProps) {
                               </span>
                             )}
                             {item.condition && (
-                              <span className="text-xs text-camp-earth/60">
+                              <span className="text-xs text-camp-earth/70">
                                 ({item.condition})
                               </span>
                             )}
@@ -513,12 +513,12 @@ export function InventoryClient({ initialInventory }: InventoryClientProps) {
                               {item.unit ? ` ${item.unit}` : ""}
                             </span>
                             {item.expiration_date && (
-                              <span className="text-camp-earth/60 text-xs">
+                              <span className="text-camp-earth/70 text-xs">
                                 Exp: {item.expiration_date}
                               </span>
                             )}
                             {item.notes && (
-                              <span className="text-camp-earth/40 text-xs truncate">
+                              <span className="text-camp-earth/60 text-xs truncate">
                                 {item.notes}
                               </span>
                             )}
@@ -529,7 +529,7 @@ export function InventoryClient({ initialInventory }: InventoryClientProps) {
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={() => startEditing(item)}
-                            className="text-camp-earth/50 hover:text-camp-sky transition-colors p-1"
+                            className="text-camp-earth/70 hover:text-camp-sky transition-colors p-1"
                             title="Edit"
                           >
                             <svg
@@ -548,7 +548,7 @@ export function InventoryClient({ initialInventory }: InventoryClientProps) {
                           </button>
                           <button
                             onClick={() => handleDelete(item.id)}
-                            className="text-camp-earth/30 hover:text-red-400 transition-colors p-1"
+                            className="text-camp-earth/60 hover:text-red-400 transition-colors p-1"
                             title="Delete"
                           >
                             <svg

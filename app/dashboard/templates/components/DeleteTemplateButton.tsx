@@ -47,7 +47,7 @@ export function DeleteTemplateButton({ templateId }: { templateId: string }) {
   return (
     <button
       onClick={() => setConfirming(true)}
-      className="text-camp-earth/50 hover:text-red-400 transition-colors"
+      className="text-camp-earth/70 hover:text-red-400 transition-colors"
       title="Delete template"
     >
       <svg

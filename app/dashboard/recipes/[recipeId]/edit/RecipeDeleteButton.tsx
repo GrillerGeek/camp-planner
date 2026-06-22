@@ -47,7 +47,7 @@ export function RecipeDeleteButton({ recipeId }: { recipeId: string }) {
   return (
     <button
       onClick={() => setConfirming(true)}
-      className="text-camp-earth/60 hover:text-red-400 text-sm transition-colors"
+      className="text-camp-earth/70 hover:text-red-400 text-sm transition-colors"
     >
       Delete recipe
     </button>

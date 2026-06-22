@@ -28,7 +28,7 @@ export function ReadinessCard({
         <h3 className="text-white font-medium">{title}</h3>
         {href && (
           <svg
-            className="w-4 h-4 text-camp-earth/40 ml-auto"
+            className="w-4 h-4 text-camp-earth/60 ml-auto"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -57,7 +57,7 @@ export function ReadinessCard({
       </div>
 
       {status === "empty" ? (
-        <p className="text-camp-earth/60 text-sm">{emptyMessage}</p>
+        <p className="text-camp-earth/70 text-sm">{emptyMessage}</p>
       ) : (
         <p className="text-camp-earth text-sm">
           {detail ?? `${percentage}% complete`}

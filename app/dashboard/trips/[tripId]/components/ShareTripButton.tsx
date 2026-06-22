@@ -215,13 +215,13 @@ export function ShareTripButton({ tripId }: ShareTripButtonProps) {
                                   </div>
                                 </div>
                               ) : (
-                                <div className="text-xs text-camp-earth/50 mb-2">
+                                <div className="text-xs text-camp-earth/70 mb-2">
                                   URL hidden — generate a new link to get a
                                   shareable URL.
                                 </div>
                               )}
                               <div className="flex items-center justify-between">
-                                <span className="text-xs text-camp-earth/60">
+                                <span className="text-xs text-camp-earth/70">
                                   Created{" "}
                                   {new Date(
                                     link.created_at
@@ -255,7 +255,7 @@ export function ShareTripButton({ tripId }: ShareTripButtonProps) {
 
                   {revokedLinks.length > 0 && (
                     <div>
-                      <h3 className="text-sm font-medium text-camp-earth/60 mb-3">
+                      <h3 className="text-sm font-medium text-camp-earth/70 mb-3">
                         Revoked Links
                       </h3>
                       <div className="space-y-2">
@@ -264,7 +264,7 @@ export function ShareTripButton({ tripId }: ShareTripButtonProps) {
                             key={link.id}
                             className="bg-white/5 border border-white/5 rounded-lg p-3 opacity-50"
                           >
-                            <span className="text-xs text-camp-earth/40">
+                            <span className="text-xs text-camp-earth/60">
                               Revoked{" "}
                               {new Date(link.revoked_at!).toLocaleDateString()}
                             </span>
@@ -276,7 +276,7 @@ export function ShareTripButton({ tripId }: ShareTripButtonProps) {
 
                   {links.length === 0 && (
                     <div className="text-center py-4">
-                      <p className="text-camp-earth/60 text-sm">
+                      <p className="text-camp-earth/70 text-sm">
                         No share links yet. Generate one above.
                       </p>
                     </div>

@@ -161,7 +161,7 @@ export function MealEditModal({
           <button
             onClick={onClose}
             disabled={saving}
-            className="text-camp-earth/60 hover:text-white text-2xl leading-none p-1 -mr-1 disabled:opacity-50"
+            className="text-camp-earth/70 hover:text-white text-2xl leading-none p-1 -mr-1 disabled:opacity-50"
             aria-label="Close"
           >
             ×
@@ -185,13 +185,13 @@ export function MealEditModal({
                 value={customName}
                 onChange={(e) => { setCustomName(e.target.value); setSaveError(null); }}
                 placeholder="Meal name..."
-                className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-white text-sm placeholder:text-camp-earth/50 focus:outline-none focus:ring-1 focus:ring-camp-forest/50"
+                className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-white text-sm placeholder:text-camp-earth/70 focus:outline-none focus:ring-1 focus:ring-camp-forest/50"
               />
             </div>
           )}
 
           {!pickingRecipe && !selectedRecipe && !isPlanner && (
-            <p className="text-camp-earth/70 text-sm">{customName || "(no name)"}</p>
+            <p className="text-camp-earth/80 text-sm">{customName || "(no name)"}</p>
           )}
 
           {/* Notes */}
@@ -205,7 +205,7 @@ export function MealEditModal({
                 onChange={(e) => { setNotes(e.target.value); setSaveError(null); }}
                 placeholder="Notes (optional)..."
                 rows={2}
-                className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-white text-sm placeholder:text-camp-earth/50 focus:outline-none focus:ring-1 focus:ring-camp-forest/50 resize-none"
+                className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-white text-sm placeholder:text-camp-earth/70 focus:outline-none focus:ring-1 focus:ring-camp-forest/50 resize-none"
               />
             </div>
           ) : (
@@ -229,12 +229,12 @@ export function MealEditModal({
                 value={recipeSearch}
                 onChange={(e) => setRecipeSearch(e.target.value)}
                 placeholder="Search recipes..."
-                className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-white text-sm placeholder:text-camp-earth/50 focus:outline-none focus:ring-1 focus:ring-camp-forest/50"
+                className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-white text-sm placeholder:text-camp-earth/70 focus:outline-none focus:ring-1 focus:ring-camp-forest/50"
                 autoFocus
               />
               <div className="max-h-48 overflow-y-auto space-y-1">
                 {filteredRecipes.length === 0 ? (
-                  <p className="text-camp-earth/60 text-xs py-2 text-center">
+                  <p className="text-camp-earth/70 text-xs py-2 text-center">
                     No recipes found
                   </p>
                 ) : (
@@ -246,7 +246,7 @@ export function MealEditModal({
                     >
                       <span className="font-medium">{r.name}</span>
                       {r.prep_time_minutes != null && (
-                        <span className="text-camp-earth/60 text-xs ml-2">
+                        <span className="text-camp-earth/70 text-xs ml-2">
                           {r.prep_time_minutes}m prep
                         </span>
                       )}
@@ -256,7 +256,7 @@ export function MealEditModal({
               </div>
               <button
                 onClick={() => setPickingRecipe(false)}
-                className="text-camp-earth/60 hover:text-white text-xs"
+                className="text-camp-earth/70 hover:text-white text-xs"
               >
                 Cancel
               </button>
@@ -295,7 +295,7 @@ export function MealEditModal({
                     onClick={handleClearRecipe}
                     disabled={saving || isOffline}
                     title={isOffline ? "Connect to the internet to edit" : undefined}
-                    className="text-camp-earth/60 hover:text-white text-xs py-1.5 px-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="text-camp-earth/70 hover:text-white text-xs py-1.5 px-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Use custom name
                   </button>
@@ -322,7 +322,7 @@ export function MealEditModal({
               <button
                 onClick={onClose}
                 disabled={saving}
-                className="text-camp-earth/60 hover:text-white text-xs py-1.5 px-3 transition-colors disabled:opacity-50"
+                className="text-camp-earth/70 hover:text-white text-xs py-1.5 px-3 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>

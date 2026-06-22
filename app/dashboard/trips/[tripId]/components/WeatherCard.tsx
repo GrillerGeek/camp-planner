@@ -236,7 +236,7 @@ export function WeatherCard({
                   <p className="text-sm font-medium text-white">{n.title}</p>
                   <p className="text-sm text-camp-earth mt-1">{n.detail}</p>
                   {n.related_days.length > 0 && (
-                    <p className="text-xs text-camp-earth/70 mt-1">
+                    <p className="text-xs text-camp-earth/80 mt-1">
                       {n.related_days.join(", ")}
                     </p>
                   )}

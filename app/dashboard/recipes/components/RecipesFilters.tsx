@@ -102,7 +102,7 @@ export function RecipesFilters({
               className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
                 active
                   ? "bg-camp-forest text-white"
-                  : "bg-white/5 text-camp-earth/70 hover:bg-white/10 hover:text-camp-earth"
+                  : "bg-white/5 text-camp-earth/80 hover:bg-white/10 hover:text-camp-earth"
               }`}
             >
               {tag}

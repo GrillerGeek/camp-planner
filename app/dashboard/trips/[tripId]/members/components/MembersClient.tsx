@@ -202,7 +202,7 @@ export function MembersClient({
                     </span>
                   )}
                 </div>
-                <div className="text-camp-earth/60 text-xs truncate">
+                <div className="text-camp-earth/70 text-xs truncate">
                   {m.email}
                 </div>
               </div>
@@ -260,7 +260,7 @@ export function MembersClient({
                 value={emailInput}
                 onChange={(e) => setEmailInput(e.target.value)}
                 placeholder="Email address"
-                className="flex-1 bg-white/5 border border-white/10 rounded px-3 py-2 text-white text-sm placeholder:text-camp-earth/50 focus:outline-none focus:ring-1 focus:ring-camp-forest/50"
+                className="flex-1 bg-white/5 border border-white/10 rounded px-3 py-2 text-white text-sm placeholder:text-camp-earth/70 focus:outline-none focus:ring-1 focus:ring-camp-forest/50"
                 required
               />
               <button
@@ -289,7 +289,7 @@ export function MembersClient({
                   <div className="text-white text-sm truncate">
                     {lookup.profile.display_name}
                   </div>
-                  <div className="text-camp-earth/60 text-xs truncate">
+                  <div className="text-camp-earth/70 text-xs truncate">
                     {lookup.profile.email}
                   </div>
                 </div>
@@ -314,7 +314,7 @@ export function MembersClient({
                       setLookup({ state: "idle" });
                       setEmailInput("");
                     }}
-                    className="text-camp-earth/60 hover:text-white text-sm py-1.5 px-3 transition-colors"
+                    className="text-camp-earth/70 hover:text-white text-sm py-1.5 px-3 transition-colors"
                   >
                     Cancel
                   </button>
@@ -330,7 +330,7 @@ export function MembersClient({
           )}
 
           {lookup.state === "not_found" && (
-            <p className="mt-3 text-camp-earth/70 text-sm">
+            <p className="mt-3 text-camp-earth/80 text-sm">
               No user found with <span className="text-white">{lookup.email}</span>.
               They need to sign in to Camp Planner with Google at least once
               before you can add them.

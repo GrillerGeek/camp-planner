@@ -521,7 +521,7 @@ export function PackingListClient({
                           </span>
                         )}
                         {item.notes && (
-                          <p className="text-camp-earth/60 text-xs mt-0.5 truncate">
+                          <p className="text-camp-earth/70 text-xs mt-0.5 truncate">
                             {item.notes}
                           </p>
                         )}
@@ -552,7 +552,7 @@ export function PackingListClient({
                                 className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                                   assigned
                                     ? "bg-camp-forest/25 border-camp-forest/60 text-camp-forest"
-                                    : "border-white/10 text-camp-earth/50 hover:text-camp-earth hover:border-white/20"
+                                    : "border-white/10 text-camp-earth/70 hover:text-camp-earth hover:border-white/20"
                                 }`}
                               >
                                 {firstName}
@@ -561,7 +561,7 @@ export function PackingListClient({
                           })}
                         </div>
                       ) : item.assignees.length > 0 ? (
-                        <span className="text-xs text-camp-earth/60 shrink-0">
+                        <span className="text-xs text-camp-earth/70 shrink-0">
                           {item.assignees
                             .map(
                               (id) =>
@@ -578,7 +578,7 @@ export function PackingListClient({
                           onClick={() => handleDeleteItem(item.id)}
                           disabled={isOffline}
                           title={isOffline ? "Connect to the internet to delete" : undefined}
-                          className="text-camp-earth/30 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-camp-earth/60 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <svg
                             className="w-4 h-4"
@@ -638,7 +638,7 @@ export function PackingListClient({
                 </svg>
               </button>
             </div>
-            <p className="text-camp-earth/70 text-xs mb-4">
+            <p className="text-camp-earth/80 text-xs mb-4">
               Items merge with what you already have. Duplicates are skipped.
             </p>
 
@@ -680,7 +680,7 @@ export function PackingListClient({
                               </span>
                             )}
                           </div>
-                          <span className="text-camp-earth/70 text-xs shrink-0">
+                          <span className="text-camp-earth/80 text-xs shrink-0">
                             {isApplying
                               ? "Applying..."
                               : `${template.item_count} item${
@@ -689,7 +689,7 @@ export function PackingListClient({
                           </span>
                         </div>
                         {template.description && (
-                          <p className="text-camp-earth/60 text-xs mb-2 line-clamp-2">
+                          <p className="text-camp-earth/70 text-xs mb-2 line-clamp-2">
                             {template.description}
                           </p>
                         )}
@@ -700,7 +700,7 @@ export function PackingListClient({
                               className={`text-[10px] px-1.5 py-0.5 rounded-full ${
                                 tripSeasons.includes(s)
                                   ? "bg-camp-sky/30 text-camp-sky"
-                                  : "bg-white/10 text-camp-earth/70"
+                                  : "bg-white/10 text-camp-earth/80"
                               }`}
                             >
                               {s}

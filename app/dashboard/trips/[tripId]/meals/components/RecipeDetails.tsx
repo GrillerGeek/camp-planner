@@ -18,7 +18,7 @@ export function RecipeDetails({ recipe, compact = false }: RecipeDetailsProps) {
       )}
 
       {/* Time + servings row */}
-      <div className="flex items-center gap-3 text-xs text-camp-earth/60 flex-wrap">
+      <div className="flex items-center gap-3 text-xs text-camp-earth/70 flex-wrap">
         {recipe.prep_time_minutes != null && (
           <span>
             <span className="text-camp-earth/80">{recipe.prep_time_minutes}m</span> prep
@@ -61,7 +61,7 @@ export function RecipeDetails({ recipe, compact = false }: RecipeDetailsProps) {
             {recipe.ingredients.map((ing, i) => (
               <li key={i} className="text-white/90 text-sm">
                 {ing.quantity && (
-                  <span className="text-camp-earth/70">
+                  <span className="text-camp-earth/80">
                     {ing.quantity}
                     {ing.unit ? ` ${ing.unit}` : ""}{" "}
                   </span>

@@ -60,7 +60,7 @@ function LoginForm() {
           Sign in with Google
         </button>
 
-        <p className="text-center text-camp-earth/60 text-xs mt-6">
+        <p className="text-center text-camp-earth/70 text-xs mt-6">
           Your trips, your way. Organized and shared.
         </p>
       </div>

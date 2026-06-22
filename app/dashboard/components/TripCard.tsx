@@ -51,7 +51,7 @@ export function TripCard({
             </svg>
             {trip.destination}
           </p>
-          <p className="text-camp-earth/70 text-xs mb-3">
+          <p className="text-camp-earth/80 text-xs mb-3">
             {formatDateRange(trip.start_date, trip.end_date)}
           </p>
           <div className="flex items-center justify-between">
@@ -64,7 +64,7 @@ export function TripCard({
             >
               {relativeDate}
             </span>
-            <span className="text-camp-earth/50 text-xs">
+            <span className="text-camp-earth/70 text-xs">
               {trip.member_count} {trip.member_count === 1 ? "member" : "members"}
             </span>
           </div>

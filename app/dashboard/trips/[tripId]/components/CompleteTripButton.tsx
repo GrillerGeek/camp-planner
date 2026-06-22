@@ -79,7 +79,7 @@ export function CompleteTripButton({ tripId }: CompleteTripButtonProps) {
       <span className="text-xl">🏁</span>
       <div>
         <span className="text-white font-medium text-sm">Complete Trip</span>
-        <p className="text-camp-earth/60 text-xs">
+        <p className="text-camp-earth/70 text-xs">
           Mark as done and start journaling
         </p>
       </div>

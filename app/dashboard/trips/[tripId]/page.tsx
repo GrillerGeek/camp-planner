@@ -217,7 +217,7 @@ export default async function TripDetailPage({
                 </p>
               </div>
               <svg
-                className="w-5 h-5 text-camp-earth/40 ml-auto"
+                className="w-5 h-5 text-camp-earth/60 ml-auto"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"

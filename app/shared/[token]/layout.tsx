@@ -11,7 +11,7 @@ export default function SharedLayout({
             &#9978;
           </span>
           <span className="text-white font-semibold text-lg">Camp Planner</span>
-          <span className="text-camp-earth/50 text-sm ml-2">Shared View</span>
+          <span className="text-camp-earth/70 text-sm ml-2">Shared View</span>
         </div>
       </header>
       <main className="max-w-4xl mx-auto px-4 py-8">{children}</main>
