@@ -354,7 +354,7 @@ export function MealPlannerClient({
             {suggestions.length > 0 && (
               <button
                 onClick={dismissSuggestions}
-                className="text-camp-earth/60 hover:text-white text-xs transition-colors"
+                className="text-camp-earth/70 hover:text-white text-xs transition-colors"
               >
                 Clear
               </button>
@@ -392,7 +392,7 @@ export function MealPlannerClient({
                     <p className="text-camp-earth/80 text-xs mb-1.5">
                       {s.description}
                     </p>
-                    <p className="text-camp-earth/60 text-xs italic mb-2">
+                    <p className="text-camp-earth/70 text-xs italic mb-2">
                       {s.why_suggested}
                     </p>
                     {matchingRecipe && (
@@ -482,7 +482,7 @@ export function MealPlannerClient({
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(e, dayDate, mealType)}
                   >
-                    <div className="text-camp-earth/60 text-xs font-medium uppercase tracking-wider mb-2">
+                    <div className="text-camp-earth/70 text-xs font-medium uppercase tracking-wider mb-2">
                       {MEAL_TYPE_LABELS[mealType]}
                     </div>
 
@@ -514,7 +514,7 @@ export function MealPlannerClient({
                                 handleRemoveMeal(meal.id);
                               }}
                               disabled={isOffline}
-                              className="text-camp-earth/40 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="text-camp-earth/60 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                               title={isOffline ? "Connect to the internet to delete" : "Remove meal"}
                             >
                               <svg
@@ -534,7 +534,7 @@ export function MealPlannerClient({
                           )}
                         </div>
                         {meal.notes && (
-                          <p className="text-camp-earth/60 text-xs mt-1 truncate">
+                          <p className="text-camp-earth/70 text-xs mt-1 truncate">
                             {meal.notes}
                           </p>
                         )}
@@ -565,7 +565,7 @@ export function MealPlannerClient({
                                 setCustomMealName(e.target.value)
                               }
                               placeholder="Meal name..."
-                              className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-white text-sm placeholder:text-camp-earth/50 focus:outline-none focus:ring-1 focus:ring-camp-forest/50"
+                              className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-white text-sm placeholder:text-camp-earth/70 focus:outline-none focus:ring-1 focus:ring-camp-forest/50"
                               autoFocus
                             />
                             <input
@@ -573,7 +573,7 @@ export function MealPlannerClient({
                               value={mealNotes}
                               onChange={(e) => setMealNotes(e.target.value)}
                               placeholder="Notes (optional)..."
-                              className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-white text-sm placeholder:text-camp-earth/50 focus:outline-none focus:ring-1 focus:ring-camp-forest/50"
+                              className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-white text-sm placeholder:text-camp-earth/70 focus:outline-none focus:ring-1 focus:ring-camp-forest/50"
                             />
                             <div className="flex gap-2">
                               <button
@@ -594,7 +594,7 @@ export function MealPlannerClient({
                               </button>
                               <button
                                 onClick={closeSlotEditor}
-                                className="text-camp-earth/60 hover:text-white text-xs py-1.5 px-2 transition-colors ml-auto"
+                                className="text-camp-earth/70 hover:text-white text-xs py-1.5 px-2 transition-colors ml-auto"
                               >
                                 Cancel
                               </button>
@@ -622,7 +622,7 @@ export function MealPlannerClient({
                               </button>
                               <button
                                 onClick={closeSlotEditor}
-                                className="text-camp-earth/60 hover:text-white text-xs py-1.5 px-2 transition-colors ml-auto"
+                                className="text-camp-earth/70 hover:text-white text-xs py-1.5 px-2 transition-colors ml-auto"
                               >
                                 Cancel
                               </button>
@@ -637,12 +637,12 @@ export function MealPlannerClient({
                                 setRecipeSearch(e.target.value)
                               }
                               placeholder="Search recipes..."
-                              className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-white text-sm placeholder:text-camp-earth/50 focus:outline-none focus:ring-1 focus:ring-camp-forest/50"
+                              className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-white text-sm placeholder:text-camp-earth/70 focus:outline-none focus:ring-1 focus:ring-camp-forest/50"
                               autoFocus
                             />
                             <div className="max-h-40 overflow-y-auto space-y-1">
                               {filteredRecipes.length === 0 ? (
-                                <p className="text-camp-earth/60 text-xs py-2 text-center">
+                                <p className="text-camp-earth/70 text-xs py-2 text-center">
                                   No recipes found
                                 </p>
                               ) : (
@@ -657,7 +657,7 @@ export function MealPlannerClient({
                                       {recipe.name}
                                     </span>
                                     {recipe.prep_time_minutes && (
-                                      <span className="text-camp-earth/60 text-xs ml-2">
+                                      <span className="text-camp-earth/70 text-xs ml-2">
                                         {recipe.prep_time_minutes}m prep
                                       </span>
                                     )}
@@ -667,7 +667,7 @@ export function MealPlannerClient({
                             </div>
                             <button
                               onClick={() => setShowRecipePicker(false)}
-                              className="text-camp-earth/60 hover:text-white text-xs py-1 transition-colors"
+                              className="text-camp-earth/70 hover:text-white text-xs py-1 transition-colors"
                             >
                               Back to custom entry
                             </button>
@@ -680,7 +680,7 @@ export function MealPlannerClient({
                           onClick={() => openSlotEditor(dayDate, mealType)}
                           disabled={isOffline}
                           title={isOffline ? "Connect to the internet to add meals" : undefined}
-                          className="w-full text-center py-2 text-camp-earth/40 hover:text-camp-forest text-xs transition-colors border border-dashed border-white/10 hover:border-camp-forest/30 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full text-center py-2 text-camp-earth/60 hover:text-camp-forest text-xs transition-colors border border-dashed border-white/10 hover:border-camp-forest/30 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           + Add meal
                         </button>

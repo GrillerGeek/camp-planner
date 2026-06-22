@@ -162,7 +162,7 @@ export function TaskTemplateItemsEditor({
                 placeholder="e.g. -7"
                 className="w-20 bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white placeholder-camp-earth/30 focus:outline-none focus:ring-1 focus:ring-camp-forest"
               />
-              <span className="text-camp-earth/50 text-[10px]">
+              <span className="text-camp-earth/70 text-[10px]">
                 (neg = before, blank = no due date)
               </span>
             </label>
@@ -311,7 +311,7 @@ export function TaskTemplateItemsEditor({
                       )}
                     </div>
                     {item.description && (
-                      <p className="text-camp-earth/60 text-xs mt-0.5">
+                      <p className="text-camp-earth/70 text-xs mt-0.5">
                         {item.description}
                       </p>
                     )}
@@ -319,7 +319,7 @@ export function TaskTemplateItemsEditor({
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                     <button
                       onClick={() => startEdit(item)}
-                      className="text-camp-earth/40 hover:text-camp-sky transition-colors p-1"
+                      className="text-camp-earth/60 hover:text-camp-sky transition-colors p-1"
                     >
                       <svg
                         className="w-3.5 h-3.5"
@@ -337,7 +337,7 @@ export function TaskTemplateItemsEditor({
                     </button>
                     <button
                       onClick={() => handleDelete(item.id)}
-                      className="text-camp-earth/40 hover:text-red-400 transition-colors p-1"
+                      className="text-camp-earth/60 hover:text-red-400 transition-colors p-1"
                     >
                       <svg
                         className="w-3.5 h-3.5"

@@ -663,7 +663,7 @@ export function TaskListClient({
                       </span>
                     </div>
                     {template.description && (
-                      <p className="text-camp-earth/60 text-xs mt-1 line-clamp-2">
+                      <p className="text-camp-earth/70 text-xs mt-1 line-clamp-2">
                         {template.description}
                       </p>
                     )}
@@ -881,7 +881,7 @@ export function TaskListClient({
                     </div>
 
                     {task.description && (
-                      <p className="text-camp-earth/60 text-xs mt-0.5 line-clamp-2">
+                      <p className="text-camp-earth/70 text-xs mt-0.5 line-clamp-2">
                         {task.description}
                       </p>
                     )}
@@ -898,7 +898,7 @@ export function TaskListClient({
                           className={`text-xs ${
                             !task.is_completed && isOverdue(task.due_date)
                               ? "text-camp-fire"
-                              : "text-camp-earth/60"
+                              : "text-camp-earth/70"
                           }`}
                         >
                           Due: {task.due_date}
@@ -915,7 +915,7 @@ export function TaskListClient({
                       <button
                         onClick={() => startEditing(task)}
                         disabled={isOffline}
-                        className="text-camp-earth/40 hover:text-camp-sky transition-colors p-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-camp-earth/60 hover:text-camp-sky transition-colors p-1 disabled:opacity-50 disabled:cursor-not-allowed"
                         title={isOffline ? "Connect to the internet to edit" : "Edit task"}
                       >
                         <svg
@@ -935,7 +935,7 @@ export function TaskListClient({
                       <button
                         onClick={() => handleDeleteTask(task.id)}
                         disabled={isOffline}
-                        className="text-camp-earth/40 hover:text-red-400 transition-colors p-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-camp-earth/60 hover:text-red-400 transition-colors p-1 disabled:opacity-50 disabled:cursor-not-allowed"
                         title={isOffline ? "Connect to the internet to delete" : "Delete task"}
                       >
                         <svg

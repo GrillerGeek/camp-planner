@@ -56,12 +56,12 @@ export function TripHeader({ trip, userRole }: TripHeaderProps) {
               </svg>
               {trip.destination}
             </span>
-            <span className="text-camp-earth/60 text-sm">
+            <span className="text-camp-earth/70 text-sm">
               {formatDateRange(trip.start_date, trip.end_date)}
             </span>
           </div>
           {trip.campsite_info && (
-            <p className="text-camp-earth/50 text-sm mt-1">
+            <p className="text-camp-earth/70 text-sm mt-1">
               {trip.campsite_info}
             </p>
           )}

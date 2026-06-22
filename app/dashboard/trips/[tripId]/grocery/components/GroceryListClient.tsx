@@ -514,7 +514,7 @@ export function GroceryListClient({
                       {item.unit ? ` ${item.unit}` : ""}
                     </span>
                     {item.inventoryItemId && (
-                      <span className="text-camp-earth/60 text-xs ml-2">
+                      <span className="text-camp-earth/70 text-xs ml-2">
                         Current inventory: {item.currentInventoryQty}
                       </span>
                     )}
@@ -545,7 +545,7 @@ export function GroceryListClient({
                     </div>
                   )}
                   {!item.inventoryItemId && (
-                    <span className="text-camp-earth/40 text-xs">
+                    <span className="text-camp-earth/60 text-xs">
                       Not in inventory
                     </span>
                   )}
@@ -726,7 +726,7 @@ export function GroceryListClient({
                             {item.unit ? ` ${item.unit}` : ""}
                           </span>
                           {item.source_recipe && (
-                            <span className="text-camp-earth/40 text-xs truncate">
+                            <span className="text-camp-earth/60 text-xs truncate">
                               From: {item.source_recipe}
                             </span>
                           )}
@@ -739,7 +739,7 @@ export function GroceryListClient({
                           onClick={() => handleDeleteItem(item.id)}
                           disabled={isOffline}
                           title={isOffline ? "Connect to the internet to delete" : undefined}
-                          className="text-camp-earth/30 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-camp-earth/60 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <svg
                             className="w-4 h-4"

@@ -220,7 +220,7 @@ export function TemplateItemsEditor({
       {/* Items List by Category */}
       {items.length === 0 ? (
         <div className="text-center py-8">
-          <p className="text-camp-earth/60 text-sm">
+          <p className="text-camp-earth/70 text-sm">
             No items yet. Add items above to build your template.
           </p>
         </div>
@@ -348,7 +348,7 @@ export function TemplateItemsEditor({
                             </span>
                           )}
                           {item.notes && (
-                            <span className="text-camp-earth/60 text-xs italic truncate max-w-xs">
+                            <span className="text-camp-earth/70 text-xs italic truncate max-w-xs">
                               — {item.notes}
                             </span>
                           )}
@@ -356,7 +356,7 @@ export function TemplateItemsEditor({
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                           <button
                             onClick={() => startEdit(item)}
-                            className="text-camp-earth/40 hover:text-camp-sky transition-colors p-1"
+                            className="text-camp-earth/60 hover:text-camp-sky transition-colors p-1"
                             title="Edit"
                           >
                             <svg
@@ -375,7 +375,7 @@ export function TemplateItemsEditor({
                           </button>
                           <button
                             onClick={() => handleDeleteItem(item.id)}
-                            className="text-camp-earth/40 hover:text-red-400 transition-colors p-1"
+                            className="text-camp-earth/60 hover:text-red-400 transition-colors p-1"
                             title="Delete"
                           >
                             <svg

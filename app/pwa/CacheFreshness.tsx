@@ -7,7 +7,7 @@ export function CacheFreshness() {
   if (!isOffline) return null;
 
   return (
-    <div className="text-xs text-camp-earth/70 italic mb-2">
+    <div className="text-xs text-camp-earth/80 italic mb-2">
       Showing cached data — connect to refresh.
     </div>
   );

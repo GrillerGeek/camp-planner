@@ -115,7 +115,7 @@ export default async function RecipesPage({
                     {recipe.description}
                   </p>
                 )}
-                <div className="flex items-center gap-3 text-camp-earth/60 text-xs">
+                <div className="flex items-center gap-3 text-camp-earth/70 text-xs">
                   {recipe.servings && (
                     <span>
                       {recipe.servings}{" "}

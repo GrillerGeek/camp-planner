@@ -46,7 +46,7 @@ export function RecipesPagination({
       >
         ← Previous
       </button>
-      <span className="text-camp-earth/60 text-sm">
+      <span className="text-camp-earth/70 text-sm">
         Page {currentPage} of {totalPages}
       </span>
       <button

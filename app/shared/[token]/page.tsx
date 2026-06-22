@@ -121,7 +121,7 @@ export default async function SharedTripPage({
         <h1 className="text-2xl font-bold text-white mb-2">{trip.name}</h1>
         <div className="flex flex-wrap items-center gap-4 text-sm text-camp-earth">
           <span>{trip.destination}</span>
-          <span className="text-camp-earth/60">
+          <span className="text-camp-earth/70">
             {formatDateRange(trip.start_date, trip.end_date)}
           </span>
           <span className="capitalize px-2 py-0.5 rounded-full text-xs bg-white/10 text-camp-earth">
@@ -129,7 +129,7 @@ export default async function SharedTripPage({
           </span>
         </div>
         {trip.campsite_info && (
-          <p className="text-camp-earth/50 text-sm mt-2">{trip.campsite_info}</p>
+          <p className="text-camp-earth/70 text-sm mt-2">{trip.campsite_info}</p>
         )}
       </div>
 
@@ -144,14 +144,14 @@ export default async function SharedTripPage({
                 className="bg-white/5 rounded-lg px-3 py-2 text-sm"
               >
                 <div className="text-white font-medium">{r.campground_name}</div>
-                <div className="text-camp-earth/60 text-xs">
+                <div className="text-camp-earth/70 text-xs">
                   {r.site_number && <>Site {r.site_number} · </>}
                   {r.check_in_date && r.check_out_date
                     ? formatDateRange(r.check_in_date, r.check_out_date)
                     : null}
                 </div>
                 {r.notes && (
-                  <div className="text-camp-earth/50 text-xs mt-1">
+                  <div className="text-camp-earth/70 text-xs mt-1">
                     {r.notes}
                   </div>
                 )}
@@ -187,7 +187,7 @@ export default async function SharedTripPage({
                         key={meal.id}
                         className="bg-white/5 rounded-lg px-3 py-2 flex items-center gap-3"
                       >
-                        <span className="text-xs text-camp-earth/60 w-16 capitalize">
+                        <span className="text-xs text-camp-earth/70 w-16 capitalize">
                           {meal.meal_type}
                         </span>
                         <span className="text-sm text-white">
@@ -224,13 +224,13 @@ export default async function SharedTripPage({
                       <span
                         className={`text-sm ${
                           item.is_packed
-                            ? "text-camp-earth/40 line-through"
+                            ? "text-camp-earth/60 line-through"
                             : "text-white"
                         }`}
                       >
                         {item.name}
                         {item.quantity > 1 && (
-                          <span className="text-camp-earth/60 ml-1">
+                          <span className="text-camp-earth/70 ml-1">
                             x{item.quantity}
                           </span>
                         )}
@@ -263,7 +263,7 @@ export default async function SharedTripPage({
                   <span
                     className={`text-sm ${
                       task.is_completed
-                        ? "text-camp-earth/40 line-through"
+                        ? "text-camp-earth/60 line-through"
                         : "text-white"
                     }`}
                   >
@@ -302,7 +302,7 @@ function Section({
 function EmptyMessage({ children }: { children: React.ReactNode }) {
   return (
     <div className="bg-white/5 border border-white/10 rounded-lg p-4 text-center">
-      <p className="text-camp-earth/60 text-sm">{children}</p>
+      <p className="text-camp-earth/70 text-sm">{children}</p>
     </div>
   );
 }

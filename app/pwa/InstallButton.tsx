@@ -87,7 +87,7 @@ export function InstallButton() {
         <button
           onClick={handleDismiss}
           aria-label="Dismiss install hint"
-          className="text-camp-earth/60 hover:text-white"
+          className="text-camp-earth/70 hover:text-white"
         >
           ✕
         </button>

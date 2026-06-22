@@ -144,13 +144,13 @@ export default function HistoryPage() {
               className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-camp-earth/40 focus:outline-none focus:border-camp-forest"
             />
             {searching && (
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-camp-earth/60 text-xs">
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-camp-earth/70 text-xs">
                 Searching...
               </span>
             )}
           </div>
           <div>
-            <label className="block text-camp-earth/60 text-xs mb-1">
+            <label className="block text-camp-earth/70 text-xs mb-1">
               From
             </label>
             <input
@@ -161,7 +161,7 @@ export default function HistoryPage() {
             />
           </div>
           <div>
-            <label className="block text-camp-earth/60 text-xs mb-1">
+            <label className="block text-camp-earth/70 text-xs mb-1">
               To
             </label>
             <input
@@ -239,16 +239,16 @@ export default function HistoryPage() {
                       <span className="text-camp-earth text-sm">
                         {trip.destination}
                       </span>
-                      <span className="text-camp-earth/40 text-sm">
+                      <span className="text-camp-earth/60 text-sm">
                         {formatDateRange(trip.start_date, trip.end_date)}
                       </span>
                     </div>
                     {journalMatch ? (
-                      <p className="text-camp-earth/70 text-sm mt-2 line-clamp-2">
+                      <p className="text-camp-earth/80 text-sm mt-2 line-clamp-2">
                         <SnippetWithHighlights snippet={journalMatch.snippet} />
                       </p>
                     ) : fallbackSnippet ? (
-                      <p className="text-camp-earth/60 text-sm mt-2 line-clamp-2">
+                      <p className="text-camp-earth/70 text-sm mt-2 line-clamp-2">
                         {fallbackSnippet}
                       </p>
                     ) : null}

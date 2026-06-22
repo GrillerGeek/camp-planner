@@ -169,7 +169,7 @@ export function TripForm({ mode, initialData }: TripFormProps) {
           <label className="block text-sm font-medium text-white mb-1.5">
             Trip Type
           </label>
-          <p className="text-camp-earth/60 text-xs mb-2">
+          <p className="text-camp-earth/70 text-xs mb-2">
             Helps surface matching packing templates when you apply one.
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -188,7 +188,7 @@ export function TripForm({ mode, initialData }: TripFormProps) {
                   className={`px-3 py-1.5 rounded-full text-xs font-medium capitalize transition-colors ${
                     active
                       ? "bg-camp-forest text-white"
-                      : "bg-white/5 text-camp-earth/70 hover:bg-white/10 hover:text-camp-earth"
+                      : "bg-white/5 text-camp-earth/80 hover:bg-white/10 hover:text-camp-earth"
                   }`}
                 >
                   {type}
