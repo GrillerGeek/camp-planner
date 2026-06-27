@@ -4,6 +4,7 @@ import { getPackingProgress } from "@/lib/queries/packing";
 import { getMealProgress } from "@/lib/queries/meals";
 import { getTaskProgress } from "@/lib/queries/tasks";
 import { getReservationProgress } from "@/lib/queries/reservations";
+import { getGroceryProgress } from "@/lib/queries/grocery";
 import Link from "next/link";
 import { TripHeader } from "./components/TripHeader";
 import { ReadinessCard } from "./components/ReadinessCard";
@@ -31,13 +32,14 @@ export default async function TripDetailPage({
   const { tripId } = await params;
   const supabase = await createClient();
 
-  const [trip, role, packingProgress, mealProgress, taskProgress, reservationProgress] = await Promise.all([
+  const [trip, role, packingProgress, mealProgress, taskProgress, reservationProgress, groceryProgress] = await Promise.all([
     getTripById(supabase, tripId),
     getUserRoleForTrip(supabase, tripId),
     getPackingProgress(supabase, tripId),
     getMealProgress(supabase, tripId),
     getTaskProgress(supabase, tripId),
     getReservationProgress(supabase, tripId),
+    getGroceryProgress(supabase, tripId),
   ]);
 
   if (!trip || !role) {
@@ -156,6 +158,31 @@ export default async function TripDetailPage({
           }
           emptyMessage="No meals planned yet — tap to get started"
           href={`/dashboard/trips/${tripId}/meals`}
+        />
+        <ReadinessCard
+          title="Grocery"
+          icon="🛒"
+          status={
+            !groceryProgress || groceryProgress.total === 0
+              ? "empty"
+              : groceryProgress.purchased === groceryProgress.total
+              ? "complete"
+              : "in_progress"
+          }
+          percentage={
+            groceryProgress && groceryProgress.total > 0
+              ? Math.round(
+                  (groceryProgress.purchased / groceryProgress.total) * 100
+                )
+              : 0
+          }
+          detail={
+            groceryProgress && groceryProgress.total > 0
+              ? `${groceryProgress.purchased}/${groceryProgress.total} items purchased`
+              : undefined
+          }
+          emptyMessage="No grocery list yet — tap to get started"
+          href={`/dashboard/trips/${tripId}/grocery`}
         />
         <ReadinessCard
           title="Tasks"
