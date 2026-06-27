@@ -68,13 +68,32 @@ export default async function TripMealsPage({
         </Link>
       </div>
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white mb-1">Meal Plan</h1>
           <p className="text-camp-earth text-sm">
             {trip.name} &middot; {trip.start_date} to {trip.end_date}
           </p>
         </div>
+        <Link
+          href={`/dashboard/trips/${tripId}/grocery`}
+          className="shrink-0 inline-flex items-center gap-1.5 bg-camp-sky hover:bg-camp-sky/80 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
+        >
+          🛒 Grocery List
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="m8.25 4.5 7.5 7.5-7.5 7.5"
+            />
+          </svg>
+        </Link>
       </div>
 
       <MealPlannerClient
