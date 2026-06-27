@@ -139,8 +139,9 @@ export function RealtimeProvider({
         .on("presence", { event: "join" }, () => syncPresence(ch))
         .on("presence", { event: "leave" }, () => syncPresence(ch));
 
-      ch.subscribe((status) => {
+      ch.subscribe((status, err) => {
         if (cancelled) return;
+
         if (status === "SUBSCRIBED") {
           retryCount = 0;
           setConnectionStatus("connected");
@@ -154,16 +155,40 @@ export function RealtimeProvider({
               online_at: new Date().toISOString(),
             });
           }
-        } else if (status === "CHANNEL_ERROR") {
-          setConnectionStatus("error");
-          scheduleRetry();
-        } else if (status === "TIMED_OUT") {
-          setConnectionStatus("disconnected");
-          scheduleRetry();
-        } else if (status === "CLOSED") {
-          setConnectionStatus("disconnected");
+          return;
+        }
+
+        // The presence channel did not (re)join. The key question for the
+        // "Connection lost" banner is NOT "did this channel join?" but "is the
+        // shared realtime socket up?". A CHANNEL_ERROR that arrives with a
+        // server error payload proves the socket reached the server and it
+        // rejected the channel — almost always the private-channel RLS
+        // authorization being denied (presence is cosmetic; data sync rides
+        // separate public per-feature channels). That is NOT a connectivity
+        // loss, so the banner must follow the socket, not this channel.
+        const socketUp = supabase.realtime.isConnected();
+        console.warn(
+          `[realtime] presence:${tripId} → ${status}` +
+            (socketUp ? " (socket connected)" : " (socket down)"),
+          err ?? ""
+        );
+
+        if (status === "CLOSED") {
           setChannel(null);
           setPresentUsers([]);
+        }
+
+        if (socketUp) {
+          // Connectivity is fine; only presence (avatars) is affected. Keep the
+          // banner hidden. Retrying an authorization denial won't help, so only
+          // a TIMED_OUT (which can be transient) is worth another attempt.
+          setConnectionStatus("connected");
+          if (status === "TIMED_OUT") scheduleRetry();
+        } else {
+          // The socket itself is down — a genuine connectivity loss. Let the
+          // (debounced) banner show and back off-retry to reconnect.
+          setConnectionStatus("disconnected");
+          scheduleRetry();
         }
       });
     };
