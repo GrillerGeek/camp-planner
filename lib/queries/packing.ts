@@ -276,7 +276,7 @@ export async function updatePackingItem(
     is_packed: boolean;
     is_essential: boolean;
     assignees: string[];
-    notes: string;
+    notes: string | null;
     sort_order: number;
   }>
 ): Promise<TripPackingItem> {

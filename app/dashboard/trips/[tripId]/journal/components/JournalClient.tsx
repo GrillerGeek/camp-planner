@@ -391,7 +391,7 @@ export function JournalClient({
                       <button
                         type="button"
                         onClick={() => removeEditPhoto(i)}
-                        className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover-reveal transition-opacity"
                       >
                         x
                       </button>
@@ -456,7 +456,7 @@ export function JournalClient({
                       <button
                         type="button"
                         onClick={() => removeFile(i)}
-                        className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover-reveal transition-opacity"
                       >
                         x
                       </button>

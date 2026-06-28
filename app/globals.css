@@ -25,3 +25,21 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
+
+/* Row action controls (edit/delete) that should reveal on hover for mouse
+   users but stay permanently visible on touch devices, which never fire
+   :hover. Replaces the old `opacity-0 group-hover:opacity-100` pattern that
+   left these controls unreachable on phones/tablets. Requires the row to
+   carry Tailwind's `group` class. focus-within keeps them keyboard-reachable. */
+.hover-reveal {
+  opacity: 1;
+}
+@media (hover: hover) {
+  .hover-reveal {
+    opacity: 0;
+  }
+  .group:hover .hover-reveal,
+  .group:focus-within .hover-reveal {
+    opacity: 1;
+  }
+}

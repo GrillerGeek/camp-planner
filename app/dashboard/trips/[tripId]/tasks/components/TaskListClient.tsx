@@ -955,7 +955,7 @@ export function TaskListClient({
 
                   {/* Edit / Delete */}
                   {isPlanner && (
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                    <div className="flex items-center gap-1 hover-reveal transition-opacity flex-shrink-0">
                       <button
                         onClick={() => startEditing(task)}
                         disabled={isOffline}
