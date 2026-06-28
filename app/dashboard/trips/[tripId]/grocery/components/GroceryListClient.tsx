@@ -19,6 +19,7 @@ import {
   GROCERY_CATEGORIES,
 } from "@/lib/types/inventory";
 import { Trip } from "@/lib/types/trip";
+import { GenerateGroceryModal } from "./GenerateGroceryModal";
 
 interface GroceryListClientProps {
   tripId: string;
@@ -26,6 +27,7 @@ interface GroceryListClientProps {
   isPlanner: boolean;
   initialGroceryList: GroceryListWithItems | null;
   initialStale: boolean;
+  memberCount: number;
 }
 
 export function GroceryListClient({
@@ -34,6 +36,7 @@ export function GroceryListClient({
   isPlanner,
   initialGroceryList,
   initialStale,
+  memberCount,
 }: GroceryListClientProps) {
   const [isStale, setIsStale] = useState(initialStale);
   const [groceryList, setGroceryList] =
@@ -60,9 +63,31 @@ export function GroceryListClient({
   const [addToInventoryToast, setAddToInventoryToast] = useState<string | null>(
     null
   );
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
 
   const supabase = createClient();
   const isOffline = useIsOffline();
+
+  // Merge AI-committed items (new inserts + merged-quantity updates) into local
+  // state by id, so the list reflects them immediately without waiting on the
+  // realtime round-trip.
+  function handleAiCommitted(committed: GroceryItem[]) {
+    setItems((prev) => {
+      const byId = new Map(prev.map((i) => [i.id, i]));
+      for (const item of committed) byId.set(item.id, item);
+      return Array.from(byId.values());
+    });
+    if (!groceryList) {
+      supabase
+        .from("trip_grocery_lists")
+        .select("*, trip_grocery_items(*)")
+        .eq("trip_id", tripId)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data) setGroceryList(data);
+        });
+    }
+  }
 
   // Realtime subscription
   const groceryListId = groceryList?.id;
@@ -325,6 +350,17 @@ export function GroceryListClient({
 
   return (
     <div>
+      {showGenerateModal && (
+        <GenerateGroceryModal
+          tripId={tripId}
+          memberCount={memberCount}
+          existingItems={items}
+          onCommitted={handleAiCommitted}
+          onClose={() => setShowGenerateModal(false)}
+          isOffline={isOffline}
+        />
+      )}
+
       {error && (
         <div className="bg-red-500/10 border border-red-500/30 text-red-300 rounded-lg p-3 mb-4 text-sm">
           {error}
@@ -387,44 +423,29 @@ export function GroceryListClient({
       <div className="flex flex-wrap items-center gap-3 mb-6">
         {isPlanner && (
           <button
-            onClick={handleGenerate}
-            disabled={generating || isOffline}
-            title={isOffline ? "Connect to the internet to update" : undefined}
+            onClick={() => setShowGenerateModal(true)}
+            disabled={isOffline}
+            title={
+              isOffline
+                ? "Connect to the internet to update"
+                : "Draft a grocery list from your meals"
+            }
             className="bg-camp-sky hover:bg-camp-sky/80 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
           >
-            {generating ? (
-              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24">
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  fill="none"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
-            ) : (
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
-                />
-              </svg>
-            )}
-            {items.length > 0 ? "Regenerate from Meals" : "Generate from Meals"}
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
+              />
+            </svg>
+            {items.length > 0 ? "Add more from meals" : "Generate from meals"}
           </button>
         )}
 

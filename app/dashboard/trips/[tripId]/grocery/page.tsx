@@ -15,12 +15,19 @@ export default async function TripGroceryPage({
   const { tripId } = await params;
   const supabase = await createClient();
 
-  const [trip, role, groceryList, staleness] = await Promise.all([
-    getTripById(supabase, tripId),
-    getUserRoleForTrip(supabase, tripId),
-    getTripGroceryList(supabase, tripId),
-    getGroceryStaleness(supabase, tripId),
-  ]);
+  const [trip, role, groceryList, staleness, memberCountResult] =
+    await Promise.all([
+      getTripById(supabase, tripId),
+      getUserRoleForTrip(supabase, tripId),
+      getTripGroceryList(supabase, tripId),
+      getGroceryStaleness(supabase, tripId),
+      supabase
+        .from("trip_members")
+        .select("*", { count: "exact", head: true })
+        .eq("trip_id", tripId),
+    ]);
+
+  const memberCount = memberCountResult.count ?? 1;
 
   if (!trip || !role) {
     return (
@@ -81,6 +88,7 @@ export default async function TripGroceryPage({
         isPlanner={isPlanner}
         initialGroceryList={groceryList}
         initialStale={staleness.isStale}
+        memberCount={memberCount}
       />
     </div>
   );

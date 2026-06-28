@@ -111,12 +111,11 @@ export async function getTripGroceryList(
     .from("trip_grocery_lists")
     .select("*, trip_grocery_items(*)")
     .eq("trip_id", tripId)
-    .single();
+    .maybeSingle();
 
-  if (error) {
-    if (error.code === "PGRST116") return null;
-    throw error;
-  }
+  // maybeSingle() returns { data: null, error: null } for 0 rows — no PGRST116
+  // and, crucially, no console 406 from a .single() Accept-header mismatch.
+  if (error) throw error;
 
   return data;
 }
@@ -176,12 +175,13 @@ async function getOrCreateGroceryList(
   supabase: SupabaseClient,
   tripId: string
 ): Promise<GroceryList> {
-  // Try to get existing
+  // Try to get existing. maybeSingle() so a not-yet-created list returns null
+  // instead of a 406 (the .single() Accept-header mismatch on 0 rows).
   const { data: existing } = await supabase
     .from("trip_grocery_lists")
     .select("*")
     .eq("trip_id", tripId)
-    .single();
+    .maybeSingle();
 
   if (existing) return existing;
 
@@ -210,36 +210,22 @@ interface AggregatedIngredient {
   sourceRecipes: string[];
 }
 
-export async function generateGroceryListFromMeals(
+/**
+ * Aggregate ingredients across a trip's recipe-linked meals (unit-family
+ * bucketed) and subtract non-expired camper inventory. Pure read — performs no
+ * writes. Shared by generateGroceryListFromMeals (which then persists the rows)
+ * and the unified "Generate from meals" proposal flow (which shows them for
+ * review before saving). Returns one entry per (ingredient, unit-family).
+ */
+export async function computeRecipeProposals(
   supabase: SupabaseClient,
   tripId: string
-): Promise<GroceryListWithItems> {
-  // 1. Get or create the grocery list
-  const groceryList = await getOrCreateGroceryList(supabase, tripId);
-
-  // 2. Get existing purchased states to preserve across regeneration.
-  // Manual items are preserved via the `is_manual = false` filter on the
-  // delete step (5) below, so they don't need to be tracked here.
-  const { data: existingItems } = await supabase
-    .from("trip_grocery_items")
-    .select("*")
-    .eq("grocery_list_id", groceryList.id);
-
-  // Keyed by (name, family) so a "2 cups flour" purchase isn't accidentally
-  // inherited by "1 lb flour".
-  const purchasedMap = new Map<string, boolean>();
-  (existingItems ?? []).forEach((item: GroceryItem) => {
-    const normName = normalizeIngredientName(item.name);
-    const family = getUnitFamily(normalizeUnit(item.unit));
-    purchasedMap.set(aggKey(normName, family), item.is_purchased);
-  });
-
-  // 3. Get trip meals with linked recipes
+): Promise<AggregatedIngredient[]> {
   const { data: mealPlan } = await supabase
     .from("trip_meal_plans")
     .select("id")
     .eq("trip_id", tripId)
-    .single();
+    .maybeSingle();
 
   const aggregated = new Map<string, AggregatedIngredient>();
 
@@ -271,10 +257,7 @@ export async function generateGroceryListFromMeals(
             // Same family — convertQuantity will always have a path.
             const converted = convertQuantity(qty, unit, existing.unit);
             existing.quantity += converted ?? qty;
-            if (
-              recipe.name &&
-              !existing.sourceRecipes.includes(recipe.name)
-            ) {
+            if (recipe.name && !existing.sourceRecipes.includes(recipe.name)) {
               existing.sourceRecipes.push(recipe.name);
             }
           } else {
@@ -293,14 +276,13 @@ export async function generateGroceryListFromMeals(
     }
   }
 
-  // 4. Subtract inventory (excluding expired items)
+  // Subtract inventory (excluding expired items).
   const { data: inventory } = await supabase
     .from("camper_inventory")
     .select("*");
 
-  // Local-date string (YYYY-MM-DD) computed from local midnight — NOT
-  // toISOString(), which would shift items expiring today into
-  // "expired" for users west of UTC and vice versa.
+  // Local-date string (YYYY-MM-DD) from local midnight — NOT toISOString(),
+  // which would misclassify items expiring today for users west of UTC.
   const localNow = new Date();
   const today = `${localNow.getFullYear()}-${String(
     localNow.getMonth() + 1
@@ -308,7 +290,6 @@ export async function generateGroceryListFromMeals(
 
   if (inventory) {
     for (const invItem of inventory) {
-      // Skip expired items
       if (invItem.expiration_date && invItem.expiration_date < today) continue;
 
       const normName = normalizeIngredientName(invItem.name);
@@ -318,11 +299,9 @@ export async function generateGroceryListFromMeals(
       const key = aggKey(normName, invFamily);
 
       const agg = aggregated.get(key);
-      if (!agg) continue; // No matching family bucket — leave other families alone
+      if (!agg) continue;
 
       const converted = convertQuantity(invQty, invUnit, agg.unit);
-      // Same family means conversion has a path; fall back to raw subtract
-      // only if convert returns null (shouldn't happen within a family).
       agg.quantity -= converted ?? invQty;
 
       if (agg.quantity <= 0) {
@@ -330,6 +309,36 @@ export async function generateGroceryListFromMeals(
       }
     }
   }
+
+  return Array.from(aggregated.values());
+}
+
+export async function generateGroceryListFromMeals(
+  supabase: SupabaseClient,
+  tripId: string
+): Promise<GroceryListWithItems> {
+  // 1. Get or create the grocery list
+  const groceryList = await getOrCreateGroceryList(supabase, tripId);
+
+  // 2. Get existing purchased states to preserve across regeneration.
+  // Manual items are preserved via the `is_manual = false` filter on the
+  // delete step (5) below, so they don't need to be tracked here.
+  const { data: existingItems } = await supabase
+    .from("trip_grocery_items")
+    .select("*")
+    .eq("grocery_list_id", groceryList.id);
+
+  // Keyed by (name, family) so a "2 cups flour" purchase isn't accidentally
+  // inherited by "1 lb flour".
+  const purchasedMap = new Map<string, boolean>();
+  (existingItems ?? []).forEach((item: GroceryItem) => {
+    const normName = normalizeIngredientName(item.name);
+    const family = getUnitFamily(normalizeUnit(item.unit));
+    purchasedMap.set(aggKey(normName, family), item.is_purchased);
+  });
+
+  // 3-4. Aggregate recipe ingredients across linked meals, minus inventory.
+  const proposals = await computeRecipeProposals(supabase, tripId);
 
   // 5. Delete old auto-generated items
   await supabase
@@ -342,7 +351,7 @@ export async function generateGroceryListFromMeals(
   const newItems: Omit<GroceryItem, "id">[] = [];
   let sortOrder = 0;
 
-  for (const agg of aggregated.values()) {
+  for (const agg of proposals) {
     const prevPurchased =
       purchasedMap.get(aggKey(agg.normalizedName, agg.family)) ?? false;
     newItems.push({
@@ -486,7 +495,7 @@ export async function getGroceryProgress(
     .from("trip_grocery_lists")
     .select("id")
     .eq("trip_id", tripId)
-    .single();
+    .maybeSingle();
 
   if (!groceryList) return null;
 
@@ -695,4 +704,85 @@ export async function addPurchasedToInventory(
   if (stampError) throw stampError;
 
   return { inserted, merged, itemsAdded: toAdd.length };
+}
+
+// ============================================================
+// Bulk commit for reviewed AI suggestions (SPEC: AI grocery from meals)
+// ============================================================
+// The AiGenerateModal decides per item whether to insert a new row or merge
+// quantity into an existing one (the user's skip/merge choice on duplicates).
+// This helper just applies those two pre-computed sets. AI items are written
+// with is_manual = true so a later deterministic "Regenerate from Meals"
+// (which deletes is_manual = false rows) does not wipe them.
+
+export interface BulkGroceryInsert {
+  name: string;
+  quantity: number;
+  unit: string | null;
+  category: string;
+}
+
+export interface BulkAddGroceryArgs {
+  toInsert: BulkGroceryInsert[];
+  toMerge: { id: string; addQuantity: number }[];
+}
+
+export async function bulkAddGroceryItems(
+  supabase: SupabaseClient,
+  tripId: string,
+  { toInsert, toMerge }: BulkAddGroceryArgs
+): Promise<GroceryItem[]> {
+  const groceryList = await getOrCreateGroceryList(supabase, tripId);
+
+  // Append new rows after whatever is already on the list.
+  const { data: existingRows } = await supabase
+    .from("trip_grocery_items")
+    .select("sort_order")
+    .eq("grocery_list_id", groceryList.id);
+  let sortOrder =
+    (existingRows ?? []).reduce(
+      (max: number, r: { sort_order: number }) => Math.max(max, r.sort_order),
+      -1
+    ) + 1;
+
+  const result: GroceryItem[] = [];
+
+  if (toInsert.length > 0) {
+    const rows = toInsert.map((item) => ({
+      grocery_list_id: groceryList.id,
+      name: item.name.trim(),
+      quantity: item.quantity,
+      unit: item.unit?.trim() || null,
+      category: item.category || "Other",
+      is_manual: true,
+      is_purchased: false,
+      source_recipe: "AI suggested",
+      sort_order: sortOrder++,
+    }));
+    const { data: inserted, error } = await supabase
+      .from("trip_grocery_items")
+      .insert(rows)
+      .select();
+    if (error) throw error;
+    result.push(...((inserted ?? []) as GroceryItem[]));
+  }
+
+  for (const merge of toMerge) {
+    const { data: current } = await supabase
+      .from("trip_grocery_items")
+      .select("quantity")
+      .eq("id", merge.id)
+      .maybeSingle();
+    const newQty = (Number(current?.quantity) || 0) + merge.addQuantity;
+    const { data: updated, error } = await supabase
+      .from("trip_grocery_items")
+      .update({ quantity: newQty })
+      .eq("id", merge.id)
+      .select()
+      .single();
+    if (error) throw error;
+    if (updated) result.push(updated as GroceryItem);
+  }
+
+  return result;
 }
