@@ -49,6 +49,13 @@ export function PackingListClient({
     category: "other",
     quantity: 1,
   });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{
+    name: string;
+    category: string;
+    quantity: number;
+    notes: string;
+  }>({ name: "", category: "other", quantity: 1, notes: "" });
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [templates, setTemplates] = useState<
     (PackingTemplate & { item_count: number })[]
@@ -229,6 +236,43 @@ export function PackingListClient({
     setItems((items) => items.filter((i) => i.id !== itemId));
     try {
       await deletePackingItem(supabase, itemId);
+    } catch {
+      setItems(prev);
+    }
+  }
+
+  // Inline edit of name / category / quantity / notes.
+  function startEditing(item: TripPackingItem) {
+    setEditingId(item.id);
+    setEditDraft({
+      name: item.name,
+      category: item.category,
+      quantity: item.quantity,
+      notes: item.notes ?? "",
+    });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+  }
+
+  async function handleSaveEdit(itemId: string) {
+    if (isOffline) return;
+    const name = editDraft.name.trim();
+    if (!name) return;
+    const prev = items;
+    const patch = {
+      name,
+      category: editDraft.category,
+      quantity: editDraft.quantity,
+      notes: editDraft.notes.trim() || null,
+    };
+    setItems((cur) =>
+      cur.map((i) => (i.id === itemId ? { ...i, ...patch } : i))
+    );
+    setEditingId(null);
+    try {
+      await updatePackingItem(supabase, itemId, patch);
     } catch {
       setItems(prev);
     }
@@ -446,6 +490,74 @@ export function PackingListClient({
                         item.is_packed ? "opacity-60" : ""
                       }`}
                     >
+                      {editingId === item.id ? (
+                        /* Inline edit: name / category / quantity / notes */
+                        <div className="flex flex-wrap items-center gap-2 w-full">
+                          <input
+                            type="text"
+                            value={editDraft.name}
+                            onChange={(e) =>
+                              setEditDraft((d) => ({ ...d, name: e.target.value }))
+                            }
+                            className="flex-1 min-w-[8rem] bg-white/5 border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-camp-forest"
+                          />
+                          <select
+                            value={editDraft.category}
+                            onChange={(e) =>
+                              setEditDraft((d) => ({ ...d, category: e.target.value }))
+                            }
+                            className="bg-white/5 border border-white/10 rounded px-1 py-1 text-xs text-white capitalize focus:outline-none focus:ring-1 focus:ring-camp-forest"
+                          >
+                            {CATEGORIES.map((cat) => (
+                              <option
+                                key={cat}
+                                value={cat}
+                                className="bg-camp-night capitalize"
+                              >
+                                {cat}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            min={1}
+                            value={editDraft.quantity}
+                            onChange={(e) =>
+                              setEditDraft((d) => ({
+                                ...d,
+                                quantity: Math.max(
+                                  1,
+                                  parseInt(e.target.value, 10) || 1
+                                ),
+                              }))
+                            }
+                            className="w-16 bg-white/5 border border-white/10 rounded px-2 py-1 text-sm text-white text-center focus:outline-none focus:ring-1 focus:ring-camp-forest"
+                          />
+                          <input
+                            type="text"
+                            value={editDraft.notes}
+                            placeholder="notes"
+                            onChange={(e) =>
+                              setEditDraft((d) => ({ ...d, notes: e.target.value }))
+                            }
+                            className="flex-1 min-w-[6rem] bg-white/5 border border-white/10 rounded px-2 py-1 text-sm text-white placeholder-camp-earth/50 focus:outline-none focus:ring-1 focus:ring-camp-forest"
+                          />
+                          <button
+                            onClick={() => handleSaveEdit(item.id)}
+                            disabled={isOffline || !editDraft.name.trim()}
+                            className="text-camp-forest hover:text-camp-pine disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium px-2 py-1"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            className="text-camp-earth hover:text-white text-sm px-2 py-1"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <>
                       {/* Checkbox */}
                       <button
                         onClick={() =>
@@ -572,28 +684,52 @@ export function PackingListClient({
                         </span>
                       ) : null}
 
-                      {/* Delete */}
-                      {isPlanner && (
-                        <button
-                          onClick={() => handleDeleteItem(item.id)}
-                          disabled={isOffline}
-                          title={isOffline ? "Connect to the internet to delete" : undefined}
-                          className="text-camp-earth/60 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M6 18 18 6M6 6l12 12"
-                            />
-                          </svg>
-                        </button>
+                          {/* Edit + Delete */}
+                          {isPlanner && (
+                            <div className="flex items-center gap-1 hover-reveal flex-shrink-0">
+                              <button
+                                onClick={() => startEditing(item)}
+                                disabled={isOffline}
+                                title={isOffline ? "Connect to the internet to edit" : "Edit item"}
+                                className="text-camp-earth/60 hover:text-camp-sky transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <svg
+                                  className="w-4 h-4"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.931-8.931Zm0 0L19.5 7.125"
+                                  />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteItem(item.id)}
+                                disabled={isOffline}
+                                title={isOffline ? "Connect to the internet to delete" : "Delete item"}
+                                className="text-camp-earth/60 hover:text-red-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <svg
+                                  className="w-4 h-4"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M6 18 18 6M6 6l12 12"
+                                  />
+                                </svg>
+                              </button>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   ))}

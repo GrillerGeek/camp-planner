@@ -869,7 +869,7 @@ export function GroceryListClient({
                                 onClick={() => startEdit(item)}
                                 disabled={isOffline}
                                 title={isOffline ? "Connect to the internet to edit" : "Edit item"}
-                                className="text-camp-earth/60 hover:text-camp-sky transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="text-camp-earth/60 hover:text-camp-sky transition-colors hover-reveal disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <svg
                                   className="w-4 h-4"
@@ -889,7 +889,7 @@ export function GroceryListClient({
                                 onClick={() => handleDeleteItem(item.id)}
                                 disabled={isOffline}
                                 title={isOffline ? "Connect to the internet to delete" : undefined}
-                                className="text-camp-earth/60 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="text-camp-earth/60 hover:text-red-400 transition-colors hover-reveal disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <svg
                                   className="w-4 h-4"

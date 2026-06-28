@@ -514,7 +514,7 @@ export function MealPlannerClient({
                                 handleRemoveMeal(meal.id);
                               }}
                               disabled={isOffline}
-                              className="text-camp-earth/60 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="text-camp-earth/60 hover:text-red-400 transition-colors hover-reveal shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                               title={isOffline ? "Connect to the internet to delete" : "Remove meal"}
                             >
                               <svg
