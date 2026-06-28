@@ -475,6 +475,33 @@ export async function togglePurchased(
   if (error) throw error;
 }
 
+export async function updateGroceryItem(
+  supabase: SupabaseClient,
+  itemId: string,
+  updates: Partial<{
+    name: string;
+    quantity: number;
+    unit: string | null;
+    category: string;
+  }>
+): Promise<GroceryItem> {
+  const patch: Record<string, unknown> = {};
+  if (updates.name !== undefined) patch.name = updates.name.trim();
+  if (updates.quantity !== undefined) patch.quantity = updates.quantity;
+  if (updates.unit !== undefined) patch.unit = updates.unit?.trim() || null;
+  if (updates.category !== undefined) patch.category = updates.category;
+
+  const { data, error } = await supabase
+    .from("trip_grocery_items")
+    .update(patch)
+    .eq("id", itemId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
 export async function deleteGroceryItem(
   supabase: SupabaseClient,
   itemId: string
