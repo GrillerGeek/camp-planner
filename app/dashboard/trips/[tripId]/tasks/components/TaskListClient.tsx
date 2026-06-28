@@ -45,6 +45,7 @@ export function TaskListClient({
   const [error, setError] = useState<string | null>(null);
   const [filterMember, setFilterMember] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [keyword, setKeyword] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("sort_order");
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -303,6 +304,14 @@ export function TaskListClient({
   } else if (statusFilter === "completed") {
     filteredTasks = filteredTasks.filter((t) => t.is_completed);
   }
+  const kw = keyword.trim().toLowerCase();
+  if (kw) {
+    filteredTasks = filteredTasks.filter(
+      (t) =>
+        t.title.toLowerCase().includes(kw) ||
+        (t.description ?? "").toLowerCase().includes(kw)
+    );
+  }
 
   // Sort tasks
   const sortedTasks = [...filteredTasks].sort((a, b) => {
@@ -423,6 +432,41 @@ export function TaskListClient({
         )}
 
         {/* Filters */}
+        <div className="relative">
+          <svg
+            className="w-4 h-4 text-camp-earth/60 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+            />
+          </svg>
+          <input
+            type="text"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="Search tasks..."
+            aria-label="Search tasks by keyword"
+            className="bg-white/5 border border-white/10 rounded-lg pl-9 pr-8 py-2 text-sm text-white placeholder-camp-earth/50 focus:outline-none focus:ring-2 focus:ring-camp-forest focus:border-transparent w-44"
+          />
+          {keyword && (
+            <button
+              onClick={() => setKeyword("")}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-camp-earth/60 hover:text-white transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
