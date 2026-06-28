@@ -7,6 +7,7 @@ import {
   generateGroceryListFromMeals,
   addGroceryItem,
   togglePurchased,
+  updateGroceryItem,
   deleteGroceryItem,
   getReconciliationData,
   applyReconciliation,
@@ -64,6 +65,13 @@ export function GroceryListClient({
     null
   );
   const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{
+    name: string;
+    quantity: number;
+    unit: string;
+    category: string;
+  }>({ name: "", quantity: 1, unit: "", category: "Other" });
 
   const supabase = createClient();
   const isOffline = useIsOffline();
@@ -226,6 +234,44 @@ export function GroceryListClient({
     setItems((items) => items.filter((i) => i.id !== itemId));
     try {
       await deleteGroceryItem(supabase, itemId);
+    } catch {
+      setItems(prev);
+    }
+  }
+
+  // Inline edit of an item's name / quantity / unit / category.
+  function startEdit(item: GroceryItem) {
+    setEditingId(item.id);
+    setEditDraft({
+      name: item.name,
+      quantity: item.quantity,
+      unit: item.unit ?? "",
+      category: item.category || "Other",
+    });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+  }
+
+  async function handleSaveEdit(itemId: string) {
+    if (isOffline) return;
+    const name = editDraft.name.trim();
+    if (!name) return;
+    const prev = items;
+    const patch = {
+      name,
+      quantity: editDraft.quantity,
+      unit: editDraft.unit.trim() || null,
+      category: editDraft.category,
+    };
+    // Optimistic
+    setItems((cur) =>
+      cur.map((i) => (i.id === itemId ? { ...i, ...patch } : i))
+    );
+    setEditingId(null);
+    try {
+      await updateGroceryItem(supabase, itemId, patch);
     } catch {
       setItems(prev);
     }
@@ -688,94 +734,180 @@ export function GroceryListClient({
                         item.is_purchased ? "opacity-60" : ""
                       }`}
                     >
-                      {/* Checkbox */}
-                      <button
-                        onClick={() =>
-                          handleTogglePurchased(item.id, item.is_purchased)
-                        }
-                        disabled={isOffline}
-                        title={isOffline ? "Connect to the internet to update" : undefined}
-                        className={`w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                          item.is_purchased
-                            ? "bg-camp-forest border-camp-forest"
-                            : "border-white/30 hover:border-camp-forest"
-                        }`}
-                      >
-                        {item.is_purchased && (
-                          <svg
-                            className="w-3 h-3 text-white"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={3}
+                      {editingId === item.id ? (
+                        /* Inline edit: same fields as the add form */
+                        <div className="flex flex-wrap items-center gap-2 w-full">
+                          <input
+                            type="text"
+                            value={editDraft.name}
+                            onChange={(e) =>
+                              setEditDraft((d) => ({ ...d, name: e.target.value }))
+                            }
+                            className="flex-1 min-w-[8rem] bg-white/5 border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-camp-forest"
+                          />
+                          <input
+                            type="number"
+                            min={0}
+                            step="any"
+                            value={editDraft.quantity}
+                            onChange={(e) =>
+                              setEditDraft((d) => ({
+                                ...d,
+                                quantity: parseFloat(e.target.value) || 0,
+                              }))
+                            }
+                            className="w-16 bg-white/5 border border-white/10 rounded px-2 py-1 text-sm text-white text-center focus:outline-none focus:ring-1 focus:ring-camp-forest"
+                          />
+                          <input
+                            type="text"
+                            value={editDraft.unit}
+                            placeholder="unit"
+                            onChange={(e) =>
+                              setEditDraft((d) => ({ ...d, unit: e.target.value }))
+                            }
+                            className="w-20 bg-white/5 border border-white/10 rounded px-2 py-1 text-sm text-white placeholder-camp-earth/50 focus:outline-none focus:ring-1 focus:ring-camp-forest"
+                          />
+                          <select
+                            value={editDraft.category}
+                            onChange={(e) =>
+                              setEditDraft((d) => ({ ...d, category: e.target.value }))
+                            }
+                            className="bg-white/5 border border-white/10 rounded px-1 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-camp-forest"
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="m4.5 12.75 6 6 9-13.5"
-                            />
-                          </svg>
-                        )}
-                      </button>
-
-                      {/* Item Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`text-sm ${
+                            {GROCERY_CATEGORIES.map((cat) => (
+                              <option key={cat} value={cat} className="bg-camp-night">
+                                {cat}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => handleSaveEdit(item.id)}
+                            disabled={isOffline || !editDraft.name.trim()}
+                            className="text-camp-forest hover:text-camp-pine disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium px-2 py-1"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            className="text-camp-earth hover:text-white text-sm px-2 py-1"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Checkbox */}
+                          <button
+                            onClick={() =>
+                              handleTogglePurchased(item.id, item.is_purchased)
+                            }
+                            disabled={isOffline}
+                            title={isOffline ? "Connect to the internet to update" : undefined}
+                            className={`w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                               item.is_purchased
-                                ? "text-camp-earth line-through"
-                                : "text-white"
+                                ? "bg-camp-forest border-camp-forest"
+                                : "border-white/30 hover:border-camp-forest"
                             }`}
                           >
-                            {item.name}
-                          </span>
-                          {item.is_manual && (
-                            <span className="text-xs bg-white/10 text-camp-earth px-1.5 py-0.5 rounded">
-                              manual
-                            </span>
-                          )}
-                          {!item.is_manual && (
-                            <span className="text-xs bg-camp-sky/20 text-camp-sky px-1.5 py-0.5 rounded">
-                              auto
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 mt-0.5">
-                          <span className="text-camp-earth text-xs">
-                            {item.quantity}
-                            {item.unit ? ` ${item.unit}` : ""}
-                          </span>
-                          {item.source_recipe && (
-                            <span className="text-camp-earth/60 text-xs truncate">
-                              From: {item.source_recipe}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                            {item.is_purchased && (
+                              <svg
+                                className="w-3 h-3 text-white"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={3}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="m4.5 12.75 6 6 9-13.5"
+                                />
+                              </svg>
+                            )}
+                          </button>
 
-                      {/* Delete */}
-                      {isPlanner && (
-                        <button
-                          onClick={() => handleDeleteItem(item.id)}
-                          disabled={isOffline}
-                          title={isOffline ? "Connect to the internet to delete" : undefined}
-                          className="text-camp-earth/60 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M6 18 18 6M6 6l12 12"
-                            />
-                          </svg>
-                        </button>
+                          {/* Item Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`text-sm ${
+                                  item.is_purchased
+                                    ? "text-camp-earth line-through"
+                                    : "text-white"
+                                }`}
+                              >
+                                {item.name}
+                              </span>
+                              {item.is_manual && (
+                                <span className="text-xs bg-white/10 text-camp-earth px-1.5 py-0.5 rounded">
+                                  manual
+                                </span>
+                              )}
+                              {!item.is_manual && (
+                                <span className="text-xs bg-camp-sky/20 text-camp-sky px-1.5 py-0.5 rounded">
+                                  auto
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 mt-0.5">
+                              <span className="text-camp-earth text-xs">
+                                {item.quantity}
+                                {item.unit ? ` ${item.unit}` : ""}
+                              </span>
+                              {item.source_recipe && (
+                                <span className="text-camp-earth/60 text-xs truncate">
+                                  From: {item.source_recipe}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Edit + Delete */}
+                          {isPlanner && (
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button
+                                onClick={() => startEdit(item)}
+                                disabled={isOffline}
+                                title={isOffline ? "Connect to the internet to edit" : "Edit item"}
+                                className="text-camp-earth/60 hover:text-camp-sky transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <svg
+                                  className="w-4 h-4"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.931-8.931Zm0 0L19.5 7.125"
+                                  />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteItem(item.id)}
+                                disabled={isOffline}
+                                title={isOffline ? "Connect to the internet to delete" : undefined}
+                                className="text-camp-earth/60 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <svg
+                                  className="w-4 h-4"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M6 18 18 6M6 6l12 12"
+                                  />
+                                </svg>
+                              </button>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   ))}
