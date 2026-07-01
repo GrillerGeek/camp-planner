@@ -268,25 +268,32 @@ export function ReservationsClient({
               </div>
 
               {/* Dates and times */}
-              {(reservation.check_in_date || reservation.check_out_date) && (
+              {(reservation.check_in_date ||
+                reservation.check_out_date ||
+                reservation.check_in_time ||
+                reservation.check_out_time) && (
                 <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1">
-                  {reservation.check_in_date && (
+                  {(reservation.check_in_date || reservation.check_in_time) && (
                     <div className="text-sm">
                       <span className="text-camp-earth/70">Check-in: </span>
                       <span className="text-white">
-                        {formatDate(reservation.check_in_date)}
+                        {reservation.check_in_date
+                          ? formatDate(reservation.check_in_date)
+                          : null}
                         {reservation.check_in_time &&
-                          ` at ${reservation.check_in_time}`}
+                          `${reservation.check_in_date ? " at " : ""}${reservation.check_in_time}`}
                       </span>
                     </div>
                   )}
-                  {reservation.check_out_date && (
+                  {(reservation.check_out_date || reservation.check_out_time) && (
                     <div className="text-sm">
                       <span className="text-camp-earth/70">Check-out: </span>
                       <span className="text-white">
-                        {formatDate(reservation.check_out_date)}
+                        {reservation.check_out_date
+                          ? formatDate(reservation.check_out_date)
+                          : null}
                         {reservation.check_out_time &&
-                          ` at ${reservation.check_out_time}`}
+                          `${reservation.check_out_date ? " at " : ""}${reservation.check_out_time}`}
                       </span>
                     </div>
                   )}
