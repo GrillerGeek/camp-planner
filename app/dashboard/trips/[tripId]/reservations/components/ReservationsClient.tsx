@@ -277,9 +277,7 @@ export function ReservationsClient({
                     <div className="text-sm">
                       <span className="text-camp-earth/70">Check-in: </span>
                       <span className="text-white">
-                        {reservation.check_in_date
-                          ? formatDate(reservation.check_in_date)
-                          : null}
+                        {reservation.check_in_date && formatDate(reservation.check_in_date)}
                         {reservation.check_in_time &&
                           `${reservation.check_in_date ? " at " : ""}${reservation.check_in_time}`}
                       </span>
@@ -289,9 +287,7 @@ export function ReservationsClient({
                     <div className="text-sm">
                       <span className="text-camp-earth/70">Check-out: </span>
                       <span className="text-white">
-                        {reservation.check_out_date
-                          ? formatDate(reservation.check_out_date)
-                          : null}
+                        {reservation.check_out_date && formatDate(reservation.check_out_date)}
                         {reservation.check_out_time &&
                           `${reservation.check_out_date ? " at " : ""}${reservation.check_out_time}`}
                       </span>
